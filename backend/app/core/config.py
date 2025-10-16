@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     
     # Environment
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: str = "production"
     
     model_config = {  # ✅ Новый способ в Pydantic v2
         "env_file": ".env",

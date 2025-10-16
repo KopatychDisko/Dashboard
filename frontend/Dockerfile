@@ -12,6 +12,14 @@ RUN npm ci
 # Копирование исходного кода
 COPY . .
 
+# Аргументы для сборки
+ARG VITE_API_URL=http://localhost:8000/api
+ARG VITE_TELEGRAM_BOT_USERNAME=DashBoardMetricksBot
+
+# Установка переменных окружения для сборки
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_TELEGRAM_BOT_USERNAME=$VITE_TELEGRAM_BOT_USERNAME
+
 # Сборка приложения
 RUN npm run build
 
