@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth } from '../hooks/useAuth.jsx'
 import { botsAPI } from '../utils/api'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { Bot, Users, Activity, ChevronRight, LogOut } from 'lucide-react'
