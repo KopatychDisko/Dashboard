@@ -24,4 +24,6 @@ USER appuser
 EXPOSE 8000
 
 # Команда запуска
-CMD ["python", "-m", "app.main"]
+# Замените последнюю строку в Dockerfile на:
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+

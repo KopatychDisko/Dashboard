@@ -3,11 +3,11 @@ FROM node:18-alpine as build
 
 WORKDIR /app
 
-# Копирование package.json и package-lock.json
+# Копирование файлов зависимостей
 COPY package*.json ./
 
-# Установка зависимостей
-RUN npm ci --only=production
+# Установка ВСЕХ зависимостей (production + dev для сборки)
+RUN npm ci
 
 # Копирование исходного кода
 COPY . .
@@ -18,7 +18,7 @@ RUN npm run build
 # Production stage
 FROM nginx:alpine
 
-# Копирование собранного приложения
+# Копирование собранного приложения из build stage
 COPY --from=build /app/dist /usr/share/nginx/html
 
 # Копирование конфигурации nginx
@@ -27,5 +27,5 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Открытие порта
 EXPOSE 80
 
-# Команда запуска
+# Запуск nginx
 CMD ["nginx", "-g", "daemon off;"]
