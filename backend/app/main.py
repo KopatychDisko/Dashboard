@@ -4,8 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-from app.api import auth, analytics, bots
-from app.core.config import settings
+from .api import auth, analytics, bots
+from .core.config import settings
 
 # Загрузка переменных окружения
 load_dotenv()

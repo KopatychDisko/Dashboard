@@ -13,7 +13,7 @@ const LoginPage = () => {
     const script = document.createElement('script')
     script.src = 'https://telegram.org/js/telegram-widget.js?22'
     script.async = true
-    script.setAttribute('data-telegram-login', import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'YOUR_BOT_USERNAME')
+    script.setAttribute('data-telegram-login', import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'DashBoardMetricksBot')
     script.setAttribute('data-size', 'large')
     script.setAttribute('data-radius', '12')
     script.setAttribute('data-request-access', 'write')
