@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth } from '../hooks/useAuth.jsx'
 import { analyticsAPI } from '../utils/api'
 import LoadingSpinner from '../components/LoadingSpinner'
 import MetricsGrid from '../components/dashboard/MetricsGrid'

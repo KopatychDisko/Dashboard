@@ -7,8 +7,10 @@ RUN apt-get update && apt-get install -y \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Копирование и установка Python зависимостей
+# Копирование только requirements.txt сначала (для кэширования слоёв)
 COPY requirements.txt .
+
+# Установка Python зависимостей
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Копирование кода приложения
@@ -22,4 +24,4 @@ USER appuser
 EXPOSE 8000
 
 # Команда запуска
-CMD ["python", "main.py"]
+CMD ["python", "-m", "app.main"]
