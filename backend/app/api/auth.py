@@ -37,50 +37,104 @@ async def telegram_auth(auth_request: TelegramAuthRequest):
     Авторизация пользователя через Telegram Widget
     """
     try:
-        logger.info(f"Попытка авторизации пользователя {auth_request.telegram_id}")
+        logger.info("=" * 100)
+        logger.info(f"🔐 НОВАЯ ПОПЫТКА АВТОРИЗАЦИИ")
+        logger.info("=" * 100)
+        logger.info(f"👤 User ID: {auth_request.telegram_id}")
+        logger.info(f"👤 Имя: {auth_request.first_name} {auth_request.last_name or ''}")
+        logger.info(f"👤 Username: @{auth_request.username or 'нет'}")
+        logger.info(f"🔑 Hash (первые 30): {auth_request.hash[:30]}...")
+        logger.info(f"🔑 Hash (последние 10): ...{auth_request.hash[-10:]}")
+        logger.info(f"⏰ Auth date (timestamp): {auth_request.auth_date}")
         
-        # Преобразуем в словарь для проверки
-        auth_data = auth_request.dict()
+        # Создаем словарь с оригинальными именами полей от Telegram
+        # ВАЖНО: используем 'id' вместо 'telegram_id' для проверки подписи
+        auth_data = {
+            'id': auth_request.telegram_id,
+            'first_name': auth_request.first_name,
+            'auth_date': auth_request.auth_date,
+            'hash': auth_request.hash
+        }
+        
+        # Добавляем опциональные поля только если они есть
+        if auth_request.last_name:
+            auth_data['last_name'] = auth_request.last_name
+            logger.info(f"📝 Добавлено поле: last_name = {auth_request.last_name}")
+        if auth_request.username:
+            auth_data['username'] = auth_request.username
+            logger.info(f"📝 Добавлено поле: username = {auth_request.username}")
+        if auth_request.photo_url:
+            auth_data['photo_url'] = auth_request.photo_url
+            logger.info(f"📝 Добавлено поле: photo_url = {auth_request.photo_url[:50]}...")
+            
+        logger.info(f"📦 Итоговые поля для проверки: {list(auth_data.keys())}")
+        logger.info(f"📦 Количество полей: {len(auth_data)}")
         
         # Проверяем подпись Telegram
         telegram_auth_service = TelegramAuth()
         
-        if not telegram_auth_service.verify_telegram_auth(auth_data):
-            logger.error(f"Неверная подпись для пользователя {auth_request.telegram_id}")
+        logger.info("🔍 ЗАПУСК ПРОВЕРКИ ПОДПИСИ...")
+        logger.info("-" * 100)
+        is_valid = telegram_auth_service.verify_telegram_auth(auth_data)
+        logger.info("-" * 100)
+        
+        if not is_valid:
+            logger.error("❌" * 40)
+            logger.error(f"❌ АВТОРИЗАЦИЯ ОТКЛОНЕНА: Неверная подпись для пользователя {auth_request.telegram_id}")
+            logger.error("❌" * 40)
             raise HTTPException(
                 status_code=400,
                 detail="Неверная подпись Telegram авторизации"
             )
         
+        logger.info("✅" * 40)
+        logger.info(f"✅ ПОДПИСЬ ВАЛИДНА! Пользователь {auth_request.telegram_id} успешно авторизован")
+        logger.info("✅" * 40)
+        
         # Проверяем актуальность авторизации (не старше 60 минут)
+        logger.info(f"⏰ Проверка времени авторизации...")
         if not telegram_auth_service.check_auth_date(auth_request.auth_date, max_age_minutes=60):
-            logger.error(f"Устаревшая авторизация для пользователя {auth_request.telegram_id}")
+            logger.error(f"⏰ ОШИБКА: Устаревшая авторизация для пользователя {auth_request.telegram_id}")
             raise HTTPException(
                 status_code=400,
                 detail="Авторизация устарела. Попробуйте войти заново."
             )
+        logger.info(f"⏰ Время авторизации валидно (не старше 60 минут)")
         
         # Извлекаем данные пользователя
+        logger.info(f"📤 Извлечение данных пользователя...")
         user_data = telegram_auth_service.extract_user_data(auth_data)
+        logger.info(f"📤 Данные пользователя: {user_data}")
         
         # Работаем с базой данных
+        logger.info(f"💾 Подключение к базе данных...")
         db_client = get_supabase_client()
         await db_client.initialize()
+        logger.info(f"💾 База данных подключена")
         
         # Создаем или обновляем пользователя
+        logger.info(f"💾 Сохранение пользователя в БД...")
         user_created = await db_client.create_or_update_user(user_data)
         
         if not user_created:
-            logger.error(f"Не удалось создать/обновить пользователя {auth_request.telegram_id}")
+            logger.error(f"💾 ОШИБКА: Не удалось создать/обновить пользователя {auth_request.telegram_id}")
             raise HTTPException(
                 status_code=500,
                 detail="Ошибка при создании пользователя"
             )
+        logger.info(f"💾 Пользователь успешно сохранен в БД")
         
         # Получаем список ботов пользователя
+        logger.info(f"🤖 Загрузка списка ботов пользователя...")
         user_bots = await db_client.get_user_bots(auth_request.telegram_id)
+        logger.info(f"🤖 Найдено ботов: {len(user_bots)}")
         
-        logger.info(f"Успешная авторизация пользователя {auth_request.telegram_id}, ботов: {len(user_bots)}")
+        logger.info("=" * 100)
+        logger.info(f"🎉 АВТОРИЗАЦИЯ ЗАВЕРШЕНА УСПЕШНО!")
+        logger.info(f"🎉 Пользователь: {auth_request.first_name} (@{auth_request.username or 'нет'})")
+        logger.info(f"🎉 ID: {auth_request.telegram_id}")
+        logger.info(f"🎉 Ботов доступно: {len(user_bots)}")
+        logger.info("=" * 100)
         
         return AuthResponse(
             success=True,

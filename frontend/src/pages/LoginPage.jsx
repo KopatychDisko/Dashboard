@@ -23,8 +23,6 @@ const LoginPage = () => {
     // Если скрипт уже есть — не добавляем заново
     const existing = document.getElementById(TELEGRAM_SCRIPT_ID)
     if (!existing) {
-      setLoading(true)
-
       const script = document.createElement('script')
       script.id = TELEGRAM_SCRIPT_ID
       script.src = 'https://telegram.org/js/telegram-widget.js?22'
@@ -36,14 +34,11 @@ const LoginPage = () => {
       script.setAttribute('data-size', 'large')
       script.setAttribute('data-radius', '12')
       script.setAttribute('data-request-access', 'write')
+      script.setAttribute('data-userpic', 'false')
       // Telegram widget вызывает глобальную onTelegramAuth(user)
       script.setAttribute('data-onauth', 'onTelegramAuth(user)')
 
-      script.onload = () => {
-        setLoading(false)
-      }
       script.onerror = (e) => {
-        setLoading(false)
         setError('Не удалось загрузить Telegram виджет. Проверьте подключение и CSP.')
         console.error('Telegram widget load error:', e)
       }
@@ -150,7 +145,7 @@ const LoginPage = () => {
 
           <div className="bg-gradient-to-r from-emerald-400/10 to-blue-400/10 rounded-xl p-8 mb-6">
             <div id="telegram-login-container" className="flex justify-center min-h-[46px] items-center">
-              {loading ? <LoadingSpinner text="Загрузка..." /> : <p className="text-white/50 text-sm">Загрузка Telegram Widget...</p>}
+              {loading && <LoadingSpinner text="Авторизация..." />}
             </div>
           </div>
 

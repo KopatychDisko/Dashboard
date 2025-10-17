@@ -23,43 +23,61 @@ class TelegramAuth:
             bool: True если подпись валидна
         """
         try:
+            logger.info("=" * 80)
+            logger.info("🔐 НАЧАЛО ПРОВЕРКИ TELEGRAM ПОДПИСИ")
+            logger.info("=" * 80)
+            
             # Извлекаем hash из данных
             received_hash = auth_data.get('hash', '')
             if not received_hash:
-                logger.error("Отсутствует hash в данных авторизации")
+                logger.error("❌ Отсутствует hash в данных авторизации")
                 return False
+            
+            logger.info(f"📥 Полученный hash от Telegram: {received_hash}")
             
             # Создаем копию данных без hash
             auth_data_copy = {k: v for k, v in auth_data.items() if k != 'hash'}
+            logger.info(f"📋 Данные для проверки (без hash): {auth_data_copy}")
             
             # Сортируем ключи и создаем строку для проверки
             data_check_string = '\n'.join([
                 f"{k}={v}" for k, v in sorted(auth_data_copy.items())
             ])
             
-            logger.debug(f"Data check string: {data_check_string}")
+            logger.info(f"📝 Data check string:\n{data_check_string}")
+            
+            # Проверяем токен бота
+            bot_token = settings.TELEGRAM_BOT_TOKEN
+            logger.info(f"🤖 BOT_TOKEN длина: {len(bot_token)} символов")
+            logger.info(f"🤖 BOT_TOKEN первые 10 символов: {bot_token[:10]}...")
+            logger.info(f"🤖 BOT_TOKEN последние 5 символов: ...{bot_token[-5:]}")
             
             # Создаем секретный ключ из токена бота
-            secret_key = hashlib.sha256(settings.TELEGRAM_BOT_TOKEN.encode()).digest()
+            logger.info("🔨 Создаем SHA256 хеш от токена бота...")
+            secret_key = hashlib.sha256(bot_token.encode()).digest()
+            logger.info(f"🔑 Secret key (hex первые 20 байт): {secret_key[:20].hex()}")
             
             # Вычисляем HMAC
+            logger.info("🔨 Вычисляем HMAC-SHA256...")
             calculated_hash = hmac.new(
                 secret_key,
                 data_check_string.encode(),
                 hashlib.sha256
             ).hexdigest()
             
-            logger.debug(f"Received hash: {received_hash}")
-            logger.debug(f"Calculated hash: {calculated_hash}")
+            logger.info(f"🔢 Вычисленный hash: {calculated_hash}")
+            logger.info(f"📥 Полученный hash:  {received_hash}")
             
             # Сравниваем хэши
             is_valid = hmac.compare_digest(calculated_hash, received_hash)
             
             if is_valid:
-                logger.info("Telegram авторизация успешно подтверждена")
+                logger.info("✅ ПОДПИСИ СОВПАДАЮТ! Авторизация валидна")
             else:
-                logger.warning("Неверная подпись Telegram авторизации")
+                logger.warning("❌ ПОДПИСИ НЕ СОВПАДАЮТ! Авторизация невалидна")
+                logger.warning(f"❌ Разница: expected={calculated_hash}, got={received_hash}")
             
+            logger.info("=" * 80)
             return is_valid
             
         except Exception as e:
