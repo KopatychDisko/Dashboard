@@ -44,7 +44,7 @@ class SupabaseClient:
             bots = set()
             
             # Проверяем в sales_users
-            users_response = self.client.table('sales_users').select('bot_id').eq(
+            users_response = self.client.table('sales_admins').select('bot_id').eq(
                 'telegram_id', telegram_id
             ).execute()
             
@@ -153,13 +153,13 @@ class SupabaseClient:
             active_today_response = active_today_query.execute()
             active_today = len(set(session['user_id'] for session in active_today_response.data)) if active_today_response.data else 0
             
-            # Симуляция данных для демонстрации (замените на реальные расчеты)
+            # Реальные данные из базы
             return {
-                'total_revenue': 142890.0,
+                'total_revenue': 0.0,  # TODO: Добавить расчет из таблицы платежей
                 'new_users': new_users,
-                'conversion_rate': 4.2,
-                'average_check': 2734.0,
-                'ltv': 8945.0,
+                'conversion_rate': 0.0,  # TODO: Рассчитать конверсию
+                'average_check': 0.0,  # TODO: Средний чек из платежей
+                'ltv': 0.0,  # TODO: LTV из истории платежей
                 'active_today': active_today,
                 'total_users': total_users,
                 'total_sessions': len(sessions),
@@ -212,8 +212,8 @@ class SupabaseClient:
                     'stage': stage,
                     'users_count': count,
                     'percentage': round(percentage, 1),
-                    'revenue': 0.0,  # Заглушка - добавьте реальный расчет
-                    'avg_check': 0.0  # Заглушка - добавьте реальный расчет
+                    'revenue': 0.0,  # TODO: Посчитать выручку на этапе
+                    'avg_check': 0.0  # TODO: Средний чек на этапе
                 })
             
             return {
@@ -231,20 +231,20 @@ class SupabaseClient:
             }
     
     async def get_revenue_by_days(self, bot_id: str, days: int = 7) -> List[Dict[str, Any]]:
-        """Получает выручку по дням (заглушка - адаптируйте под вашу структуру)"""
+        """Получает выручку по дням из реальных данных"""
         try:
-            # Заглушка с примерными данными
+            cutoff_date = datetime.now() - timedelta(days=days)
             revenue_data = []
-            base_date = datetime.now().date()
             
-            for i in range(days):
-                date_point = base_date - timedelta(days=days-i-1)
-                revenue_data.append({
-                    'date': date_point.isoformat(),
-                    'revenue': 15000 + (i * 2000) + (i * i * 100),  # Примерные данные
-                    'orders_count': 5 + i
-                })
+            # TODO: Добавьте запрос к таблице платежей/транзакций
+            # Пример структуры запроса:
+            # payments = self.client.table('payments').select('amount, created_at').eq(
+            #     'bot_id', bot_id
+            # ).gte('created_at', cutoff_date.isoformat()).execute()
+            # 
+            # Группировка по дням и подсчет суммы
             
+            logger.warning(f"get_revenue_by_days: Нет реальных данных. Верните пустой массив.")
             return revenue_data
             
         except Exception as e:

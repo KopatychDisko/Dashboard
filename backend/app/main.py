@@ -20,9 +20,10 @@ app = FastAPI(
 # Настройка CORS
 origins = [
     settings.FRONTEND_URL,
+    "http://127.0.0.1",
+    "http://127.0.0.1:80",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://localhost:3000",
 ]
 
 app.add_middleware(
@@ -55,8 +56,6 @@ async def health_check():
 if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",
-        host="0.0.0.0",
-        port=8000,
         reload=True,
         log_level="info"
     )
