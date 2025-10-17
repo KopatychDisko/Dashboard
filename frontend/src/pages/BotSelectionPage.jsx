@@ -153,7 +153,7 @@ const BotCard = ({ bot, onSelect, delay = 0 }) => {
       <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-1 text-white/70">
           <Users size={16} />
-          <span>ID: {bot.bot_id}</span>
+          <span>{bot.total || 0} польз.</span>
         </div>
         
         <div className={`flex items-center gap-1 ${
