@@ -25,13 +25,26 @@ async def get_user_bots(telegram_id: int):
         # Формируем детальную информацию о ботах
         bots_info = []
         for bot_id in user_bots:
-            # Здесь можно добавить дополнительную информацию о боте
-            # Например, из конфигурации или отдельной таблицы
+            # Получаем количество пользователей бота
+            bot_client = get_supabase_client(bot_id)
+            await bot_client.initialize()
+            
+            # Получаем базовую статистику (исключаем пользователей с first_name = Test)
+            users_count = 0
+            try:
+                users_response = bot_client.client.table('sales_users').select(
+                    'telegram_id'
+                ).eq('bot_id', bot_id).neq('first_name', 'Test').execute()
+                users_count = len(users_response.data) if users_response.data else 0
+            except Exception as e:
+                logger.warning(f"Не удалось получить количество пользователей для бота {bot_id}: {e}")
+            
             bot_info = {
                 "bot_id": bot_id,
                 "name": bot_id.replace("-", " ").title(),
                 "status": "active",
-                "created_at": None,  # Можно добавить из конфигурации
+                "total": users_count,
+                "created_at": None,
                 "description": f"Бот {bot_id}"
             }
             bots_info.append(bot_info)
