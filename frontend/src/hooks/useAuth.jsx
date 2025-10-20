@@ -22,17 +22,12 @@ export function AuthProvider({ children }) {
 
   const checkAuthStatus = async () => {
     try {
-      const telegramId = sessionStorage.getItem('telegram_id')
+      // Используем новый endpoint /auth/me который читает куки
+      const response = await apiClient.get('/auth/me')
       
-      if (telegramId) {
-        const response = await apiClient.get(`/auth/user/${telegramId}`)
-        
-        if (response.data.success) {
-          setUser(response.data.user)
-          setIsAuthenticated(true)
-        } else {
-          clearAuth()
-        }
+      if (response.data.success) {
+        setUser(response.data.user)
+        setIsAuthenticated(true)
       } else {
         clearAuth()
       }
@@ -60,7 +55,7 @@ export function AuthProvider({ children }) {
         
         setUser(userData)
         setIsAuthenticated(true)
-        sessionStorage.setItem('telegram_id', response.data.telegram_id.toString())
+        // Куки устанавливаются автоматически сервером
         
         return { success: true, user: userData }
       }
@@ -77,14 +72,21 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const logout = () => {
-    clearAuth()
+  const logout = async () => {
+    try {
+      // Вызываем logout на сервере для очистки куков
+      await apiClient.post('/auth/logout')
+    } catch (error) {
+      console.error('Ошибка выхода:', error)
+    } finally {
+      clearAuth()
+    }
   }
 
   const clearAuth = () => {
     setUser(null)
     setIsAuthenticated(false)
-    sessionStorage.removeItem('telegram_id')
+    // Больше не используем sessionStorage
   }
 
   const value = {

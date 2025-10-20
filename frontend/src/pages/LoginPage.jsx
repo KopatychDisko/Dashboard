@@ -178,9 +178,7 @@ const LoginPage = () => {
           </div>
         </div>
 
-        <p className="text-center text-white/50 text-sm mt-6">
-          Нажимая "Login with Telegram", вы соглашаетесь с условиями использования
-        </p>
+        
       </div>
     </div>
   )

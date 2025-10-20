@@ -7,6 +7,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
+  withCredentials: true,  // Включаем отправку куков
   headers: {
     'Content-Type': 'application/json',
   }
@@ -18,9 +19,8 @@ apiClient.interceptors.response.use(
   error => {
     console.error('API Error:', error)
     
-    // Если ошибка авторизации - очищаем сессию
+    // Если ошибка авторизации - перенаправляем на логин
     if (error.response?.status === 401) {
-      sessionStorage.removeItem('telegram_id')
       window.location.href = '/login'
     }
     
@@ -33,8 +33,14 @@ export const authAPI = {
   loginWithTelegram: (telegramData) => 
     apiClient.post('/auth/telegram', telegramData),
   
+  getCurrentUser: () => 
+    apiClient.get('/auth/me'),
+  
   getUserInfo: (telegramId) => 
     apiClient.get(`/auth/user/${telegramId}`),
+  
+  logout: () => 
+    apiClient.post('/auth/logout'),
   
   verifyHash: (data) => 
     apiClient.post('/auth/verify-hash', data)
@@ -60,9 +66,6 @@ export const analyticsAPI = {
   
   getFunnelAnalytics: (botId, days = 7) => 
     apiClient.get(`/analytics/${botId}/funnel`, { params: { days } }),
-  
-  getRevenueAnalytics: (botId, days = 7) => 
-    apiClient.get(`/analytics/${botId}/revenue`, { params: { days } }),
   
   getDetailedAnalytics: (botId, days = 30) => 
     apiClient.get(`/analytics/${botId}/detailed`, { params: { days } }),

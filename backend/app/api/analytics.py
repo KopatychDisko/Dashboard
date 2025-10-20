@@ -34,16 +34,11 @@ async def get_dashboard_analytics(
         logger.info(f"🎯 Получение воронки продаж...")
         funnel_data = await db_client.get_funnel_stats(bot_id, days)
         
-        # Получаем выручку по дням
-        logger.info(f"💰 Получение выручки по дням...")
-        revenue_data = await db_client.get_revenue_by_days(bot_id, days)
-        
         # Формируем ответ
         response = {
             "bot_id": bot_id,
             "metrics": metrics_data,
             "funnel": funnel_data,
-            "revenue_by_days": revenue_data,
             "generated_at": datetime.now().isoformat()
         }
         
@@ -128,40 +123,7 @@ async def get_funnel_analytics(
             detail="Ошибка получения воронки продаж"
         )
 
-@router.get("/{bot_id}/revenue", response_model=Dict[str, Any])
-async def get_revenue_analytics(
-    bot_id: str = Path(..., description="ID бота"),
-    days: int = Query(7, ge=1, le=365, description="Количество дней для анализа")
-) -> Dict[str, Any]:
-    """
-    Получение аналитики выручки по дням
-    
-    Returns:
-        Dict с выручкой и количеством заказов по дням
-    """
-    try:
-        logger.info(f"💰 Запрос выручки для бота {bot_id}, период: {days} дней")
-        
-        db_client = get_supabase_client(bot_id)
-        await db_client.initialize()
-        
-        revenue_data = await db_client.get_revenue_by_days(bot_id, days)
-        
-        logger.info(f"✅ Выручка для бота {bot_id} получена: {len(revenue_data)} дней")
-        
-        return {
-            "success": True,
-            "bot_id": bot_id,
-            "period_days": days,
-            "revenue_data": revenue_data
-        }
-        
-    except Exception as e:
-        logger.error(f"Ошибка получения выручки для бота {bot_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Ошибка получения аналитики выручки"
-        )
+# Эндпоинт выручки удалён по требованию. Оставлены метрики и воронка.
 
 @router.get("/{bot_id}/detailed", response_model=Dict[str, Any])
 async def get_detailed_analytics(
@@ -301,16 +263,12 @@ async def export_analytics(
         logger.info(f"🎯 Получение воронки...")
         funnel_stats = await db_client.get_funnel_stats(bot_id, days)
         
-        logger.info(f"💰 Получение выручки...")
-        revenue_data = await db_client.get_revenue_by_days(bot_id, days)
-        
         export_data = {
             "bot_id": bot_id,
             "period_days": days,
             "exported_at": datetime.now().isoformat(),
             "metrics": metrics,
-            "funnel": funnel_stats,
-            "revenue_data": revenue_data
+            "funnel": funnel_stats
         }
         
         if export_format == "json":
