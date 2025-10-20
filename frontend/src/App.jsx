@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './hooks/useAuth.jsx'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import BotSelectionPage from './pages/BotSelectionPage'
+import AccountSwitchGuide from './pages/AccountSwitchGuide'
 import LoadingSpinner from './components/LoadingSpinner'
 
 function AppRoutes() {
@@ -36,6 +37,10 @@ function AppRoutes() {
         element={
           isAuthenticated ? <DashboardPage /> : <Navigate to="/login" replace />
         } 
+      />
+      <Route 
+        path="/account-switch" 
+        element={<AccountSwitchGuide />}
       />
       <Route 
         path="/" 
