@@ -67,6 +67,9 @@ export const analyticsAPI = {
   getDetailedAnalytics: (botId, days = 30) => 
     apiClient.get(`/analytics/${botId}/detailed`, { params: { days } }),
   
+  getRecentEvents: (botId, limit = 10) => 
+    apiClient.get(`/analytics/${botId}/recent-events`, { params: { limit } }),
+  
   exportAnalytics: (botId, days = 30, format = 'json') => 
     apiClient.get(`/analytics/${botId}/export`, { params: { days, format } })
 }

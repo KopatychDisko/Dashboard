@@ -6,13 +6,29 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import MetricsGrid from '../components/dashboard/MetricsGrid'
 import RevenueChart from '../components/dashboard/RevenueChart'
 import FunnelChart from '../components/dashboard/FunnelChart'
-import { ArrowLeft, RefreshCw, Calendar, Download } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Calendar, Download, Users, Activity } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
+import { ru } from 'date-fns/locale'
+
+// Функция для форматирования времени относительно МСК
+const getTimeAgo = (timestamp) => {
+  try {
+    const eventDate = new Date(timestamp)
+    return formatDistanceToNow(eventDate, { 
+      addSuffix: true, 
+      locale: ru 
+    })
+  } catch (e) {
+    return 'недавно'
+  }
+}
 
 const DashboardPage = () => {
   const { botId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
   const [analytics, setAnalytics] = useState(null)
+  const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [refreshing, setRefreshing] = useState(false)
@@ -29,6 +45,12 @@ const DashboardPage = () => {
       
       const response = await analyticsAPI.getDashboardAnalytics(botId, period)
       setAnalytics(response.data)
+      
+      // Загружаем последние события
+      const eventsResponse = await analyticsAPI.getRecentEvents(botId, 10)
+      if (eventsResponse.data.success) {
+        setEvents(eventsResponse.data.events || [])
+      }
     } catch (err) {
       console.error('Ошибка загрузки аналитики:', err)
       setError('Не удалось загрузить аналитику')
@@ -162,16 +184,60 @@ const DashboardPage = () => {
 
         {analytics && (
           <>
-            {/* Metrics Grid */}
-            <MetricsGrid metrics={analytics.metrics} />
-            
-            {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-              <div className="lg:col-span-2">
-                <RevenueChart data={analytics.revenue_by_days} />
+            {/* User Statistics */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              {/* Активные пользователи сегодня */}
+              <div className="glass-card relative p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-green-400 to-emerald-400 flex items-center justify-center">
+                    <Activity size={24} className="text-white" />
+                  </div>
+                </div>
+                <div className="mb-2">
+                  <p className="text-white/60 text-sm uppercase tracking-wide mb-1">
+                    Активных сегодня
+                  </p>
+                  <p className="text-2xl font-bold text-white">
+                    {analytics.metrics.active_today?.toLocaleString('ru-RU') || '0'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <FunnelChart data={analytics.funnel} />
+
+              {/* Всего пользователей */}
+              <div className="glass-card relative p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-400 to-cyan-400 flex items-center justify-center">
+                    <Users size={24} className="text-white" />
+                  </div>
+                </div>
+                <div className="mb-2">
+                  <p className="text-white/60 text-sm uppercase tracking-wide mb-1">
+                    Всего пользователей
+                  </p>
+                  <p className="text-2xl font-bold text-white">
+                    {analytics.metrics.total_users?.toLocaleString('ru-RU') || '0'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Новые пользователи */}
+              <div className="glass-card relative p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 flex items-center justify-center">
+                    <Users size={24} className="text-white" />
+                  </div>
+                </div>
+                <div className="mb-2">
+                  <p className="text-white/60 text-sm uppercase tracking-wide mb-1">
+                    Новые пользователи
+                  </p>
+                  <p className="text-2xl font-bold text-white">
+                    {analytics.metrics.new_users?.toLocaleString('ru-RU') || '0'}
+                  </p>
+                </div>
+                <p className="text-white/50 text-sm">
+                  за {analytics.metrics.period_days || 7} дней
+                </p>
               </div>
             </div>
             
@@ -182,64 +248,32 @@ const DashboardPage = () => {
               </h3>
               
               <div className="space-y-3">
-                {[
-                  {
-                    type: 'purchase',
-                    title: 'Новая покупка',
-                    description: 'Пользователь @user_1234 купил премиум пакет',
-                    amount: '+₽4,990',
-                    time: '2 мин назад',
-                    positive: true
-                  },
-                  {
-                    type: 'upsell',
-                    title: 'Апсейл',
-                    description: 'Пользователь @alex_92 добавил дополнительную услугу',
-                    amount: '+₽1,200',
-                    time: '15 мин назад',
-                    positive: true
-                  },
-                  {
-                    type: 'referral',
-                    title: 'Реферальный бонус',
-                    description: '@maria_k привела нового клиента',
-                    amount: '+₽500',
-                    time: '1 час назад',
-                    positive: true
-                  },
-                  {
-                    type: 'refund',
-                    title: 'Возврат',
-                    description: '@user_567 запросил возврат средств',
-                    amount: '-₽1,500',
-                    time: '3 часа назад',
-                    positive: false
-                  }
-                ].map((activity, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-4 bg-white/5 rounded-xl border-l-4 border-emerald-400"
-                  >
-                    <div className="flex-1">
-                      <p className="font-semibold text-white mb-1">
-                        {activity.title}
-                      </p>
-                      <p className="text-white/70 text-sm">
-                        {activity.description}
-                      </p>
+                {events.length > 0 ? (
+                  events.map((event, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-4 bg-white/5 rounded-xl border-l-4 border-blue-400"
+                    >
+                      <div className="flex-1">
+                        <p className="font-semibold text-white mb-1">
+                          {event.title}
+                        </p>
+                        <p className="text-white/70 text-sm">
+                          {event.description}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-white/60 text-sm">
+                          {getTimeAgo(event.created_at)}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-white/60 text-sm mb-1">
-                        {activity.time}
-                      </p>
-                      <p className={`font-bold text-lg ${
-                        activity.positive ? 'text-emerald-400' : 'text-red-400'
-                      }`}>
-                        {activity.amount}
-                      </p>
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-white/50">
+                    <p>Нет событий</p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </>
