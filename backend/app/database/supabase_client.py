@@ -146,12 +146,35 @@ class SupabaseClient:
             sessions = sessions_response.data if sessions_response.data else []
             
             # Активные пользователи сегодня
-            today = datetime.now().date()
-            active_today_query = self.client.table('sales_chat_sessions').select('user_id').eq(
-                'bot_id', bot_id
-            ).gte('created_at', today.isoformat())
-            active_today_response = active_today_query.execute()
-            active_today = len(set(session['user_id'] for session in active_today_response.data)) if active_today_response.data else 0
+            # Логика: ищем сессии где есть сообщения от пользователя (role='user') сегодня
+            today = datetime.now(timezone.utc).date()
+            logger.info(f"🔍 Подсчет активных пользователей за сегодня ({today})")
+            
+            # Получаем все session_id для бота
+            sessions_query = self.client.table('sales_chat_sessions').select('id').eq('bot_id', bot_id)
+            sessions_response = sessions_query.execute()
+            session_ids = [s['id'] for s in (sessions_response.data or [])]
+            
+            logger.info(f"📊 Найдено {len(session_ids)} сессий для бота {bot_id}")
+            
+            # Ищем сообщения от пользователей (role='user') сегодня в этих сессиях
+            active_today = 0
+            if session_ids:
+                messages_query = self.client.table('sales_messages').select(
+                    'session_id'
+                ).in_('session_id', session_ids).eq('role', 'user').gte(
+                    'created_at', today.isoformat()
+                )
+                messages_response = messages_query.execute()
+                
+                # Считаем уникальные session_id (один пользователь = одна сессия)
+                unique_sessions = set(msg['session_id'] for msg in (messages_response.data or []))
+                active_today = len(unique_sessions)
+                
+                logger.info(f"💬 Найдено {len(messages_response.data or [])} сообщений от пользователей сегодня")
+                logger.info(f"✅ Активных пользователей сегодня: {active_today}")
+            else:
+                logger.warning(f"⚠️ Нет сессий для бота {bot_id}")
             
             # Реальные данные из базы
             return {

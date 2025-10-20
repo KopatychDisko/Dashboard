@@ -32,12 +32,19 @@ async def get_user_bots(telegram_id: int):
             # Получаем базовую статистику (исключаем пользователей с first_name = Test)
             users_count = 0
             try:
+                logger.info(f"🔍 Подсчет пользователей для bot_id: {bot_id}")
                 users_response = bot_client.client.table('sales_users').select(
                     'telegram_id'
                 ).eq('bot_id', bot_id).neq('first_name', 'Test').execute()
+                
+                logger.info(f"📊 Ответ от БД: data={users_response.data}")
+                logger.info(f"📊 Тип данных: {type(users_response.data)}")
+                logger.info(f"📊 Длина массива: {len(users_response.data) if users_response.data else 0}")
+                
                 users_count = len(users_response.data) if users_response.data else 0
+                logger.info(f"✅ Для бота {bot_id} найдено {users_count} пользователей (без Test)")
             except Exception as e:
-                logger.warning(f"Не удалось получить количество пользователей для бота {bot_id}: {e}")
+                logger.error(f"❌ Ошибка получения пользователей для бота {bot_id}: {e}")
             
             bot_info = {
                 "bot_id": bot_id,

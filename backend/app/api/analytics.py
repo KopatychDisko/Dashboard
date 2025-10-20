@@ -211,6 +211,66 @@ async def get_detailed_analytics(
             detail="Ошибка получения детальной аналитики"
         )
 
+@router.get("/{bot_id}/recent-events", response_model=Dict[str, Any])
+async def get_recent_events(
+    bot_id: str = Path(..., description="ID бота"),
+    limit: int = Query(10, ge=1, le=50, description="Количество событий")
+) -> Dict[str, Any]:
+    """
+    Получение последних событий бота
+    
+    Returns:
+        Dict со списком последних событий (title, description, created_at)
+    """
+    try:
+        logger.info(f"📋 Запрос последних {limit} событий для бота {bot_id}")
+        
+        db_client = get_supabase_client(bot_id)
+        await db_client.initialize()
+        
+        # Получаем события из таблицы scheduled_events, колонка info_dashboard
+        events_response = db_client.client.table('scheduled_events').select(
+            'info_dashboard'
+        ).eq('bot_id', bot_id).not_.is_('info_dashboard', 'null').order(
+            'created_at', desc=True
+        ).limit(limit).execute()
+        
+        # Парсим JSON из info_dashboard
+        events_list = []
+        for row in (events_response.data or []):
+            info = row.get('info_dashboard')
+            if info and isinstance(info, dict):
+                # info уже распарсен как dict
+                events_list.append({
+                    'title': info.get('title', ''),
+                    'description': info.get('description', ''),
+                    'created_at': info.get('created_at', '')
+                })
+            elif info and isinstance(info, str):
+                # Если пришло как строка - парсим JSON
+                import json
+                try:
+                    parsed_info = json.loads(info)
+                    events_list.append({
+                        'title': parsed_info.get('title', ''),
+                        'description': parsed_info.get('description', ''),
+                        'created_at': parsed_info.get('created_at', '')
+                    })
+                except json.JSONDecodeError:
+                    logger.warning(f"Не удалось распарсить info_dashboard: {info}")
+        
+        logger.info(f"✅ Получено {len(events_list)} событий для бота {bot_id}")
+        
+        return {
+            "success": True,
+            "bot_id": bot_id,
+            "events": events_list
+        }
+    except Exception as e:
+        logger.error(f"Ошибка получения событий для бота {bot_id}: {e}")
+        # Возвращаем пустой список при ошибке
+        return {"success": True, "bot_id": bot_id, "events": []}
+
 @router.get("/{bot_id}/export", response_model=Dict[str, Any])
 async def export_analytics(
     bot_id: str = Path(..., description="ID бота"),
