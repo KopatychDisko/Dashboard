@@ -253,26 +253,7 @@ class SupabaseClient:
                 'total_conversion': 0
             }
     
-    async def get_revenue_by_days(self, bot_id: str, days: int = 7) -> List[Dict[str, Any]]:
-        """Получает выручку по дням из реальных данных"""
-        try:
-            cutoff_date = datetime.now() - timedelta(days=days)
-            revenue_data = []
-            
-            # TODO: Добавьте запрос к таблице платежей/транзакций
-            # Пример структуры запроса:
-            # payments = self.client.table('payments').select('amount, created_at').eq(
-            #     'bot_id', bot_id
-            # ).gte('created_at', cutoff_date.isoformat()).execute()
-            # 
-            # Группировка по дням и подсчет суммы
-            
-            logger.warning(f"get_revenue_by_days: Нет реальных данных. Верните пустой массив.")
-            return revenue_data
-            
-        except Exception as e:
-            logger.error(f"Ошибка получения выручки по дням для бота {bot_id}: {e}")
-            return []
+    # Метод get_revenue_by_days удалён по требованию. Оставлены метрики и воронка.
 
 # Создание глобального экземпляра
 def get_supabase_client(bot_id: str = None) -> SupabaseClient:

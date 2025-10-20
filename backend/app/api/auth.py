@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Response, Request
 from pydantic import BaseModel
 from typing import Dict, Any
 
@@ -32,7 +32,7 @@ class AuthResponse(BaseModel):
     message: str
 
 @router.post("/telegram", response_model=AuthResponse)
-async def telegram_auth(auth_request: TelegramAuthRequest):
+async def telegram_auth(auth_request: TelegramAuthRequest, response: Response):
     """
     Авторизация пользователя через Telegram Widget
     """
@@ -136,6 +136,19 @@ async def telegram_auth(auth_request: TelegramAuthRequest):
         logger.info(f"🎉 Ботов доступно: {len(user_bots)}")
         logger.info("=" * 100)
         
+        # Устанавливаем куку с telegram_id
+        response.set_cookie(
+            key="telegram_id",
+            value=str(auth_request.telegram_id),
+            max_age=30 * 24 * 60 * 60,  # 30 дней
+            httponly=True,
+            secure=False,  # Для localhost
+            samesite="lax",
+            path="/"
+        )
+        
+        logger.info(f"🍪 Установлена кука telegram_id={auth_request.telegram_id}")
+        
         return AuthResponse(
             success=True,
             telegram_id=auth_request.telegram_id,
@@ -153,6 +166,85 @@ async def telegram_auth(auth_request: TelegramAuthRequest):
         raise HTTPException(
             status_code=500,
             detail="Внутренняя ошибка сервера"
+        )
+
+@router.get("/me")
+async def get_current_user(request: Request):
+    """
+    Получение информации о текущем пользователе из куков
+    """
+    try:
+        logger.info(f"🍪 Куки запроса: {dict(request.cookies)}")
+        telegram_id = request.cookies.get('telegram_id')
+        
+        if not telegram_id:
+            # Нет куки — считаем, что пользователь не авторизован, но не шлем 401
+            # чтобы не провоцировать бесконечные редиректы на фронтенде
+            return {
+                "success": False,
+                "user": None,
+                "bots": []
+            }
+        
+        logger.info(f"Запрос информации о пользователе {telegram_id} из куков")
+        
+        db_client = get_supabase_client()
+        await db_client.initialize()
+        
+        # Получаем информацию о пользователе
+        user_info = await db_client.get_user_info(int(telegram_id))
+        
+        if not user_info:
+            raise HTTPException(
+                status_code=404,
+                detail="Пользователь не найден"
+            )
+        
+        # Получаем список ботов пользователя
+        user_bots = await db_client.get_user_bots(int(telegram_id))
+        
+        return {
+            "success": True,
+            "user": user_info,
+            "bots": user_bots
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка получения информации о текущем пользователе: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Внутренняя ошибка сервера"
+        )
+
+@router.post("/logout")
+async def logout(response: Response):
+    """
+    Выход пользователя (очистка куков)
+    """
+    try:
+        # Удаляем куку
+        response.delete_cookie(
+            key="telegram_id",
+            httponly=True,
+            secure=False,
+            samesite="lax",
+            path="/"
+        )
+        
+        logger.info("🍪 Кука telegram_id удалена")
+        
+        return {
+            "success": True,
+            "message": "Выход выполнен"
+        }
+        
+    except Exception as e:
+        logger.error(f"Ошибка выхода: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Ошибка выхода"
         )
 
 @router.get("/user/{telegram_id}")
