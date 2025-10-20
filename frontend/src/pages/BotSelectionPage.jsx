@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { botsAPI } from '../utils/api'
 import LoadingSpinner from '../components/LoadingSpinner'
+import LoadingOverlay from '../components/LoadingOverlay'
 import { Bot, Users, Activity, ChevronRight, LogOut } from 'lucide-react'
 
 const BotSelectionPage = () => {
@@ -45,9 +46,10 @@ const BotSelectionPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" text="Загрузка ботов..." />
-      </div>
+      <>
+        <div className="min-h-screen" />
+        <LoadingOverlay text="Загрузка ботов..." />
+      </>
     )
   }
 

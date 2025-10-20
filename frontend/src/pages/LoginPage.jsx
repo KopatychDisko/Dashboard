@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../hooks/useAuth.jsx'
 import LoadingSpinner from '../components/LoadingSpinner'
+import { useNavigate } from 'react-router-dom'
 
 const TELEGRAM_SCRIPT_ID = 'telegram-login-script'
 
 const LoginPage = () => {
   const { login } = useAuth()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -20,39 +22,39 @@ const LoginPage = () => {
       return
     }
 
-    // Если скрипт уже есть — не добавляем заново
-    const existing = document.getElementById(TELEGRAM_SCRIPT_ID)
-    if (!existing) {
-      const script = document.createElement('script')
-      script.id = TELEGRAM_SCRIPT_ID
-      script.src = 'https://telegram.org/js/telegram-widget.js?22'
-      script.async = true
-      script.setAttribute(
-        'data-telegram-login',
-        import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'DashBoardMetricksBot'
-      )
-      script.setAttribute('data-size', 'large')
-      script.setAttribute('data-radius', '12')
-      script.setAttribute('data-request-access', 'write')
-      script.setAttribute('data-userpic', 'false')
-      // Telegram widget вызывает глобальную onTelegramAuth(user)
-      script.setAttribute('data-onauth', 'onTelegramAuth(user)')
+    // Cleanup старого скрипта и контейнера перед новым монтированием
+    const prevScript = document.getElementById(TELEGRAM_SCRIPT_ID)
+    if (prevScript) prevScript.remove()
+    container.innerHTML = ''
 
-      script.onerror = (e) => {
-        setError('Не удалось загрузить Telegram виджет. Проверьте подключение и CSP.')
-        console.error('Telegram widget load error:', e)
-      }
+    // Создаем новый скрипт с anti-cache и force_auth
+    const script = document.createElement('script')
+    script.id = TELEGRAM_SCRIPT_ID
+    script.src = `https://telegram.org/js/telegram-widget.js?22&ts=${Date.now()}&force_auth=true`
+    script.async = true
+    script.setAttribute(
+      'data-telegram-login',
+      import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'DashBoardMetricksBot'
+    )
+    script.setAttribute('data-size', 'large')
+    script.setAttribute('data-radius', '12')
+    script.setAttribute('data-request-access', 'write')
+    script.setAttribute('data-userpic', 'false')
+    script.setAttribute('data-onauth', 'onTelegramAuth(user)')
 
-      container.appendChild(script)
+    script.onerror = (e) => {
+      setError('Не удалось загрузить Telegram виджет. Проверьте подключение и CSP.')
+      console.error('Telegram widget load error:', e)
     }
 
-    // Определяем глобальную функцию авторизации и сохраняем ссылку для очистки
+    container.appendChild(script)
+
+    // Определяем глобальную функцию авторизации
     const onTelegramAuth = async (telegramUser) => {
       setLoading(true)
       setError('')
 
       try {
-        // ВАЖНО: всегда валидируйте hash на бэкенде (используя бот-токен)
         const result = await login({
           telegram_id: telegramUser.id,
           first_name: telegramUser.first_name,
@@ -63,12 +65,8 @@ const LoginPage = () => {
           hash: telegramUser.hash
         })
 
-        if (result?.success) {
-          setSuccess(true)
-          // перенаправление/сохранение токенов обрабатывается в useAuth
-        } else {
-          setError(result?.error || 'Ошибка авторизации')
-        }
+        if (result?.success) setSuccess(true)
+        else setError(result?.error || 'Ошибка авторизации')
       } catch (err) {
         setError('Не удалось войти через Telegram. Попробуйте снова.')
         console.error('Auth error:', err)
@@ -77,29 +75,21 @@ const LoginPage = () => {
       }
     }
 
-    // Сохраняем ссылку на обработчик, чтобы корректно удалить при cleanup
     handlerRef.current = onTelegramAuth
     window.onTelegramAuth = handlerRef.current
 
     return () => {
-      // Очищаем только свой обработчик
-      try {
-        if (window.onTelegramAuth && window.onTelegramAuth === handlerRef.current) {
-          delete window.onTelegramAuth
-        }
-      } catch (e) {
-        // В некоторых окружениях delete может бросать — на всякий случай fallback
-        if (window.onTelegramAuth && window.onTelegramAuth === handlerRef.current) {
-          window.onTelegramAuth = undefined
-        }
+      // Удаляем обработчик
+      if (window.onTelegramAuth === handlerRef.current) {
+        delete window.onTelegramAuth
       }
 
-      // Очищаем содержимое контейнера (виджет)
-      if (container) {
-        container.innerHTML = ''
-      }
-      // Скрипт оставляем в DOM (ускорит повторное монтирование), но если хочется — можно удалить:
-      // const s = document.getElementById(TELEGRAM_SCRIPT_ID); if (s) s.remove();
+      // Чистим контейнер
+      container.innerHTML = ''
+
+      // Удаляем скрипт полностью
+      const s = document.getElementById(TELEGRAM_SCRIPT_ID)
+      if (s) s.remove()
     }
   }, [login])
 
@@ -149,6 +139,15 @@ const LoginPage = () => {
             </div>
           </div>
 
+          <div className="flex justify-center">
+            <button
+              onClick={() => navigate('/account-switch')}
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-sm"
+            >
+              Хочу поменять Telegram аккаунт — как это сделать?
+            </button>
+          </div>
+
           <div className="border-t border-white/10 pt-6">
             <div className="space-y-3">
               <div className="flex items-start gap-3">
@@ -177,8 +176,6 @@ const LoginPage = () => {
             </div>
           </div>
         </div>
-
-        
       </div>
     </div>
   )

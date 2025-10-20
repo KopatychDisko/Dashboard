@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { analyticsAPI } from '../utils/api'
 import LoadingSpinner from '../components/LoadingSpinner'
+import LoadingOverlay from '../components/LoadingOverlay'
 import MetricsGrid from '../components/dashboard/MetricsGrid'
 import RevenueChart from '../components/dashboard/RevenueChart'
 import FunnelChart from '../components/dashboard/FunnelChart'
@@ -89,9 +90,10 @@ const DashboardPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" text="Загрузка аналитики..." />
-      </div>
+      <>
+        <div className="min-h-screen" />
+        <LoadingOverlay text="Загрузка аналитики..." />
+      </>
     )
   }
 
