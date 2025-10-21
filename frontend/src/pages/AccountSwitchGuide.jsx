@@ -32,7 +32,7 @@ const AccountSwitchGuide = () => {
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
               <img
-                src="./assets/chat_telegram.png"
+                src="/assets/chat_telegram.png"
                 alt="Служебный чат Telegram"
                 className="object-contain max-h-full max-w-full"
               />
@@ -52,7 +52,7 @@ const AccountSwitchGuide = () => {
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
               <img
-                src="./assets/find_msg.png"
+                src="/assets/find_msg.png"
                 alt="Сообщение о подключении к dshb.lemifar.ru"
                 className="object-contain max-h-full max-w-full"
               />
@@ -73,7 +73,7 @@ const AccountSwitchGuide = () => {
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
               <img
-                src="./assets/btn.png"
+                src="/assets/btn.png"
                 alt="Кнопка 'Отключить' под сообщением"
                 className="object-contain max-h-full max-w-full"
               />
@@ -102,7 +102,7 @@ const AccountSwitchGuide = () => {
               </div>
               <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
                 <img
-                  src="./assets/end.png"
+                  src="/assets/end.png"
                   alt="Ввод номера телефона"
                   className="object-contain max-h-full max-w-full"
                 />
