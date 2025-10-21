@@ -1,7 +1,41 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+const ImageModal = ({ isOpen, onClose, imageSrc, alt }) => {
+  if (!isOpen) return null
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-8 cursor-pointer animate-fadeIn"
+      onClick={onClose}
+    >
+      <div 
+        className="relative bg-white/5 backdrop-blur-xl rounded-2xl p-4 shadow-2xl animate-scaleIn"
+        onClick={e => e.stopPropagation()}
+        style={{ maxWidth: '900px', width: '100%' }}
+      >
+        <div className="relative aspect-video">
+          <img
+            src={imageSrc}
+            alt={alt}
+            className="w-full h-full rounded-lg object-contain bg-black/20"
+          />
+          <button
+            onClick={onClose}
+            className="absolute -top-2 -right-2 text-white/90 hover:text-white bg-black/50 hover:bg-black/70 rounded-full w-8 h-8 flex items-center justify-center transition-all hover:scale-110 hover:rotate-90 duration-300 text-sm"
+          >
+            ✕
+          </button>
+        </div>
+        <p className="text-white/60 text-center mt-3 text-sm">{alt}</p>
+      </div>
+    </div>
+  )
+}
+
 const AccountSwitchGuide = () => {
+  const [modalImage, setModalImage] = useState(null)
+  
   const navigate = useNavigate()
 
   return (
@@ -34,7 +68,8 @@ const AccountSwitchGuide = () => {
               <img
                 src="/assets/chat_telegram.png"
                 alt="Служебный чат Telegram"
-                className="object-contain max-h-full max-w-full"
+                className="object-contain max-h-full max-w-full cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => setModalImage({ src: "/assets/chat_telegram.png", alt: "Служебный чат Telegram" })}
               />
             </div>
           </div>
@@ -54,7 +89,8 @@ const AccountSwitchGuide = () => {
               <img
                 src="/assets/find_msg.png"
                 alt="Сообщение о подключении к dshb.lemifar.ru"
-                className="object-contain max-h-full max-w-full"
+                className="object-contain max-h-full max-w-full cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => setModalImage({ src: "/assets/find_msg.png", alt: "Сообщение о подключении к dshb.lemifar.ru" })}
               />
             </div>
           </div>
@@ -68,14 +104,14 @@ const AccountSwitchGuide = () => {
               <h2 className="text-xl font-semibold text-white">Нажмите кнопку "Отключить"</h2>
             </div>
             <p className="text-white/80 mb-4">
-              Под сообщением о подключении нажмите кнопку <span className="text-red-400 font-medium">"Отключить"</span> 
-              или <span className="text-red-400 font-medium">"Disconnect"</span>.
+              Под сообщением о подключении нажмите кнопку <span className="text-red-400 font-medium">"Отключить" </span>или<span className="text-red-400 font-medium"> "Disconnect"</span>.
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
               <img
                 src="/assets/btn.png"
                 alt="Кнопка 'Отключить' под сообщением"
-                className="object-contain max-h-full max-w-full"
+                className="object-contain max-h-full max-w-full cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => setModalImage({ src: "/assets/btn.png", alt: "Кнопка 'Отключить' под сообщением" })}
               />
             </div>
           </div>
@@ -86,31 +122,52 @@ const AccountSwitchGuide = () => {
               <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
                 4
               </div>
+              <h2 className="text-xl font-semibold text-white">Выйдите из текущего аккаунта</h2>
+            </div>
+            <p className="text-white/80 mb-4">
+              Вернитесь на сайт, нажмите "Войти через Telegram". В окне авторизации найдите и нажмите кнопку 
+              <span className="text-yellow-400 font-medium"> "Выйти"</span>.
+            </p>
+            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
+              <img
+                src="/assets/exit.png"
+                alt="Выход из аккаунта"
+                className="object-contain max-h-full max-w-full cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => setModalImage({ src: "/assets/exit.png", alt: "Выход из аккаунта" })}
+              />
+            </div>
+          </div>
+
+          {/* Шаг 5 */}
+          <div className="glass-card relative p-6">
+            <div className="flex items-center mb-4">
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
+                5
+              </div>
               <h2 className="text-xl font-semibold text-white">Войдите под другим аккаунтом</h2>
             </div>
             <p className="text-white/80 mb-4">
-              Вернитесь на сайт, нажмите "Войти через Telegram". В окне авторизации нажмите кнопку 
-              <span className="text-yellow-400 font-medium"> "Выйти"</span>, затем введите номер телефона нужного аккаунта.
+              После выхода введите номер телефона того аккаунта Telegram, под которым хотите войти в систему.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
-                <img
-                  src="./assets/exit.png"
-                  alt="Выход из аккаунта"
-                  className="object-contain max-h-full max-w-full"
-                />
-              </div>
-              <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
-                <img
-                  src="/assets/end.png"
-                  alt="Ввод номера телефона"
-                  className="object-contain max-h-full max-w-full"
-                />
-              </div>
+            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
+              <img
+                src="/assets/end.png"
+                alt="Ввод номера телефона"
+                className="object-contain max-h-full max-w-full cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => setModalImage({ src: "/assets/end.png", alt: "Ввод номера телефона" })}
+              />
             </div>
           </div>
         </div>
       </div>
+      
+      {/* Модальное окно для увеличенного просмотра */}
+      <ImageModal
+        isOpen={!!modalImage}
+        onClose={() => setModalImage(null)}
+        imageSrc={modalImage?.src}
+        alt={modalImage?.alt}
+      />
     </div>
   )
 }
