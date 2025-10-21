@@ -9,7 +9,7 @@ services:
       - .env
     environment:
       - ENVIRONMENT=production
-      - FRONTEND_URL=http://127.0.0.1
+      - FRONTEND_URL=https://dshb.lemifar.ru
     restart: unless-stopped
     depends_on:
       - redis
@@ -21,10 +21,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=http://127.0.0.1:8000/api
+        - VITE_API_URL=https://dshb.lemifar.ru/api
         - VITE_TELEGRAM_BOT_USERNAME=DashBoardMetricksBot
     ports:
-      - "127.0.0.1:80:80"
+      - "127.0.0.1:8080:8080"
     restart: unless-stopped
     networks:
       - telegram-dashboard
