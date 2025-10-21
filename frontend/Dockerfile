@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-alpine as build
+FROM node:18-alpine AS build
 
 WORKDIR /app
 
@@ -9,8 +9,9 @@ COPY package*.json ./
 # Установка ВСЕХ зависимостей (production + dev для сборки)
 RUN npm ci
 
-# Копирование исходного кода
+# Копирование исходного кода и ассетов
 COPY . .
+RUN mkdir -p /app/dist/assets
 
 # Аргументы для сборки
 ARG VITE_API_URL=http://localhost:8000/api
