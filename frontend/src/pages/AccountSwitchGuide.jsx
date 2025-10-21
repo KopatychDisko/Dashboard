@@ -17,31 +17,80 @@ const AccountSwitchGuide = () => {
           </button>
         </div>
 
-        <div className="glass-card relative p-6 space-y-4">
-          <ol className="list-decimal list-inside space-y-3 text-white/80">
-            <li>
-              Откройте служебный чат Telegram <span className="text-white">service notifications</span>
-              (вас в него перекидывало при первой авторизации).
-            </li>
-            <li>
-              Найдите сообщение про вход на <span className="text-white">127.0.0.1</span> и нажмите кнопку
-              <span className="text-emerald-400"> Отключить</span>.
-            </li>
-            <li>
-              Вернитесь на страницу логина и нажмите «Login with Telegram» —
-              теперь сможете авторизоваться под другим аккаунтом (по номеру телефона).
-            </li>
-            <li>
-              При необходимости добавьте/обновите скриншоты ниже.
-            </li>
-          </ol>
-
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4 text-white/60">
-            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center">
-              Скрин 1
+        <div className="space-y-6">
+          {/* Шаг 1 */}
+          <div className="glass-card relative p-6">
+            <div className="flex items-center mb-4">
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
+                1
+              </div>
+              <h2 className="text-xl font-semibold text-white">Найдите служебный чат Telegram</h2>
             </div>
-            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center">
-              Скрин 2
+            <p className="text-white/80 mb-4">
+              Откройте Telegram и найдите чат с уведомлениями о безопасности, в который пришло сообщение 
+              о первом подключении к сайту.
+            </p>
+            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
+              Фото: Служебный чат Telegram
+            </div>
+          </div>
+
+          {/* Шаг 2 */}
+          <div className="glass-card relative p-6">
+            <div className="flex items-center mb-4">
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
+                2
+              </div>
+              <h2 className="text-xl font-semibold text-white">Найдите сообщение о подключении</h2>
+            </div>
+            <p className="text-white/80 mb-4">
+              В этом чате найдите сообщение о подключении к сайту <span className="text-white font-medium">dshb.lemifar.ru</span>.
+            </p>
+            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
+              Фото: Сообщение о подключении к dshb.lemifar.ru
+            </div>
+          </div>
+
+          {/* Шаг 3 */}
+          <div className="glass-card relative p-6">
+            <div className="flex items-center mb-4">
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
+                3
+              </div>
+              <h2 className="text-xl font-semibold text-white">Нажмите кнопку "Отключить"</h2>
+            </div>
+            <p className="text-white/80 mb-4">
+              Под сообщением о подключении нажмите кнопку <span className="text-red-400 font-medium">"Отключить"</span> 
+              или <span className="text-red-400 font-medium">"Terminate"</span>.
+            </p>
+            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
+              Фото: Кнопка "Отключить" под сообщением
+            </div>
+          </div>
+
+          {/* Шаг 4 */}
+          <div className="glass-card relative p-6">
+            <div className="flex items-center mb-4">
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
+                4
+              </div>
+              <h2 className="text-xl font-semibold text-white">Войдите под другим аккаунтом</h2>
+            </div>
+            <p className="text-white/80 mb-4">
+              Вернитесь на сайт, нажмите "Войти через Telegram". В окне авторизации нажмите кнопку 
+              <span className="text-yellow-400 font-medium"> "Выйти"</span>, затем введите номер телефона нужного аккаунта.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
+                <img
+                  src="/путь/к/вашему/фото.jpg"
+                  alt="Описание фото"
+                  className="object-contain max-h-full max-w-full"
+                />
+              </div>
+              <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
+                Фото: Ввод номера телефона
+              </div>
             </div>
           </div>
         </div>
@@ -51,4 +100,3 @@ const AccountSwitchGuide = () => {
 }
 
 export default AccountSwitchGuide
-
