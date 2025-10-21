@@ -10,6 +10,7 @@ services:
     environment:
       - ENVIRONMENT=production
       - FRONTEND_URL=https://dshb.lemifar.ru
+      - CORS_ORIGINS=https://dshb.lemifar.ru
     restart: unless-stopped
     depends_on:
       - redis
