@@ -33,7 +33,7 @@ COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Открытие порта
-EXPOSE 80
+EXPOSE 8080
 
 # Запуск nginx
 CMD ["nginx", "-g", "daemon off;"]
