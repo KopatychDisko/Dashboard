@@ -31,7 +31,11 @@ const AccountSwitchGuide = () => {
               о первом подключении к сайту.
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
-              Фото: Служебный чат Telegram
+              <img
+                src="./assets/chat_telegram.png"
+                alt="Служебный чат Telegram"
+                className="object-contain max-h-full max-w-full"
+              />
             </div>
           </div>
 
@@ -47,7 +51,11 @@ const AccountSwitchGuide = () => {
               В этом чате найдите сообщение о подключении к сайту <span className="text-white font-medium">dshb.lemifar.ru</span>.
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
-              Фото: Сообщение о подключении к dshb.lemifar.ru
+              <img
+                src="./assets/find_msg.png"
+                alt="Сообщение о подключении к dshb.lemifar.ru"
+                className="object-contain max-h-full max-w-full"
+              />
             </div>
           </div>
 
@@ -61,10 +69,14 @@ const AccountSwitchGuide = () => {
             </div>
             <p className="text-white/80 mb-4">
               Под сообщением о подключении нажмите кнопку <span className="text-red-400 font-medium">"Отключить"</span> 
-              или <span className="text-red-400 font-medium">"Terminate"</span>.
+              или <span className="text-red-400 font-medium">"Disconnect"</span>.
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
-              Фото: Кнопка "Отключить" под сообщением
+              <img
+                src="./assets/btn.png"
+                alt="Кнопка 'Отключить' под сообщением"
+                className="object-contain max-h-full max-w-full"
+              />
             </div>
           </div>
 
@@ -83,13 +95,17 @@ const AccountSwitchGuide = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
                 <img
-                  src="/путь/к/вашему/фото.jpg"
-                  alt="Описание фото"
+                  src="./assets/exit.png"
+                  alt="Выход из аккаунта"
                   className="object-contain max-h-full max-w-full"
                 />
               </div>
               <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
-                Фото: Ввод номера телефона
+                <img
+                  src="./assets/end.png"
+                  alt="Ввод номера телефона"
+                  className="object-contain max-h-full max-w-full"
+                />
               </div>
             </div>
           </div>
