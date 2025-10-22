@@ -26,6 +26,8 @@ services:
         - VITE_TELEGRAM_BOT_USERNAME=DashBoardMetricksBot
     ports:
       - "127.0.0.1:8080:8080"
+    volumes:
+      - ./frontend/public/assets:/usr/share/nginx/assets
     restart: unless-stopped
     networks:
       - telegram-dashboard
