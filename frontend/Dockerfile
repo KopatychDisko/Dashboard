@@ -1,13 +1,17 @@
 # Build stage
 FROM node:18-alpine AS build
 
+# Устанавливаем зависимости для более быстрой сборки
+RUN apk add --no-cache libc6-compat
+
 WORKDIR /app
 
 # Копирование файлов зависимостей
 COPY package*.json ./
 
-# Установка ВСЕХ зависимостей (production + dev для сборки)
-RUN npm ci
+# Установка зависимостей с использованием cache mount
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --prefer-offline --no-audit
 
 # Копирование исходного кода (без assets)
 COPY . .
@@ -18,11 +22,15 @@ ARG VITE_API_URL=http://localhost:8000/api
 ARG VITE_TELEGRAM_BOT_USERNAME=DashBoardMetricksBot
 
 # Установка переменных окружения для сборки
-ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_TELEGRAM_BOT_USERNAME=$VITE_TELEGRAM_BOT_USERNAME
+ENV VITE_API_URL=$VITE_API_URL \
+    VITE_TELEGRAM_BOT_USERNAME=$VITE_TELEGRAM_BOT_USERNAME \
+    NODE_ENV=production \
+    NODE_OPTIONS="--max-old-space-size=4096"
 
-# Сборка приложения
-RUN npm run build
+# Сборка приложения с использованием cache mount для node_modules
+RUN --mount=type=cache,target=/root/.npm \
+    --mount=type=cache,target=/app/node_modules/.vite \
+    npm run build
 
 # Production stage
 FROM nginx:alpine
