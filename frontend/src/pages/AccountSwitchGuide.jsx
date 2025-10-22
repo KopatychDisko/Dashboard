@@ -99,21 +99,13 @@ const AccountSwitchGuide = () => {
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
               <picture>
-                <source
-                  srcSet="/assets/chat_telegram.png"
-                  type="image/png"
-                  media="(min-width: 1024px)"
-                />
-                <source
-                  srcSet="/assets/chat_telegram.png"
-                  type="image/png"
-                  media="(max-width: 1023px)"
-                />
+                <source srcSet="/assets/chat_telegram.webp" type="image/webp" />
+                <source srcSet="/assets/chat_telegram.png" type="image/png" />
                 <img
                   src="/assets/chat_telegram.png"
                   alt="Служебный чат Telegram"
                   className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                  onClick={() => setModalImage({ src: "/assets/chat_telegram.png", alt: "Служебный чат Telegram" })}
+                  onClick={() => setModalImage({ src: '/assets/chat_telegram.png', alt: 'Служебный чат Telegram' })}
                   loading="lazy"
                   decoding="async"
                   fetchpriority="high"
@@ -136,14 +128,12 @@ const AccountSwitchGuide = () => {
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
               <picture>
                 <source
-                  srcSet="/assets/find_msg.png"
-                  type="image/png"
-                  media="(min-width: 1024px)"
+                  srcSet="/assets/find_msg.webp"
+                  type="image/webp"
                 />
                 <source
                   srcSet="/assets/find_msg.png"
                   type="image/png"
-                  media="(max-width: 1023px)"
                 />
                 <img
                   src="/assets/find_msg.png"
@@ -171,14 +161,12 @@ const AccountSwitchGuide = () => {
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
               <picture>
                 <source
-                  srcSet="/assets/btn.png"
-                  type="image/png"
-                  media="(min-width: 1024px)"
+                  srcSet="/assets/btn.webp"
+                  type="image/webp"
                 />
                 <source
                   srcSet="/assets/btn.png"
                   type="image/png"
-                  media="(max-width: 1023px)"
                 />
                 <img
                   src="/assets/btn.png"
@@ -207,14 +195,12 @@ const AccountSwitchGuide = () => {
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
               <picture>
                 <source
-                  srcSet="/assets/exit.png"
-                  type="image/png"
-                  media="(min-width: 1024px)"
+                  srcSet="/assets/exit.webp"
+                  type="image/webp"
                 />
                 <source
                   srcSet="/assets/exit.png"
                   type="image/png"
-                  media="(max-width: 1023px)"
                 />
                 <img
                   src="/assets/exit.png"
@@ -242,14 +228,12 @@ const AccountSwitchGuide = () => {
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
               <picture>
                 <source
-                  srcSet="/assets/end.png"
-                  type="image/png"
-                  media="(min-width: 1024px)"
+                  srcSet="/assets/end.webp"
+                  type="image/webp"
                 />
                 <source
                   srcSet="/assets/end.png"
                   type="image/png"
-                  media="(max-width: 1023px)"
                 />
                 <img
                   src="/assets/end.png"
