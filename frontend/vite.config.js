@@ -66,7 +66,6 @@ export default defineConfig({
   },
   // Отключаем ненужные проверки
   esbuild: {
-    jsxInject: `import React from 'react'`,
     legalComments: 'none'
   }
 })
