@@ -126,22 +126,29 @@ class SupabaseClient:
         try:
             cutoff_date = datetime.now() - timedelta(days=days)
             
-            # Получаем пользователей бота
-            users_query = self.client.table('sales_users').select('telegram_id').eq('bot_id', bot_id)
+            # Получаем пользователей бота (исключая тестовых)
+            users_query = self.client.table('sales_users').select('telegram_id').eq('bot_id', bot_id).not_.like('first_name', 'Test%')
             users_response = users_query.execute()
             total_users = len(users_response.data) if users_response.data else 0
             
-            # Получаем новых пользователей за период
+            # Сначала получаем список реальных пользователей
+            real_users_query = self.client.table('sales_users').select('telegram_id').eq('bot_id', bot_id).not_.like('first_name', 'Test')
+            real_users_response = real_users_query.execute()
+            real_user_ids = [u['telegram_id'] for u in (real_users_response.data or [])]
+            
+            # Получаем новых пользователей за период (исключая тестовых)
             new_users_query = self.client.table('sales_users').select('telegram_id').eq(
                 'bot_id', bot_id
-            ).gte('created_at', cutoff_date.isoformat())
+            ).not_.like('first_name', 'Test').gte('created_at', cutoff_date.isoformat())
             new_users_response = new_users_query.execute()
             new_users = len(new_users_response.data) if new_users_response.data else 0
             
-            # Получаем сессии за период
+            # Получаем сессии за период только для реальных пользователей
             sessions_query = self.client.table('sales_chat_sessions').select(
                 'id', 'user_id', 'current_stage', 'created_at'
             ).eq('bot_id', bot_id).gte('created_at', cutoff_date.isoformat())
+            if real_user_ids:  # Добавляем фильтр по реальным пользователям
+                sessions_query = sessions_query.in_('user_id', real_user_ids)
             sessions_response = sessions_query.execute()
             sessions = sessions_response.data if sessions_response.data else []
             
@@ -150,8 +157,10 @@ class SupabaseClient:
             today = datetime.now(timezone.utc).date()
             logger.info(f"🔍 Подсчет активных пользователей за сегодня ({today})")
             
-            # Получаем все session_id для бота
+            # Получаем все session_id для бота только для реальных пользователей
             sessions_query = self.client.table('sales_chat_sessions').select('id').eq('bot_id', bot_id)
+            if real_user_ids:
+                sessions_query = sessions_query.in_('user_id', real_user_ids)
             sessions_response = sessions_query.execute()
             session_ids = [s['id'] for s in (sessions_response.data or [])]
             
