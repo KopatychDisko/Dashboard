@@ -98,13 +98,27 @@ const AccountSwitchGuide = () => {
               о первом подключении к сайту.
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
-              <img
-                src="/assets/chat_telegram.png"
-                alt="Служебный чат Telegram"
-                className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() => setModalImage({ src: "/assets/chat_telegram.png", alt: "Служебный чат Telegram" })}
-                loading="lazy"
-              />
+              <picture>
+                <source
+                  srcSet="/assets/chat_telegram.png"
+                  type="image/png"
+                  media="(min-width: 1024px)"
+                />
+                <source
+                  srcSet="/assets/chat_telegram.png"
+                  type="image/png"
+                  media="(max-width: 1023px)"
+                />
+                <img
+                  src="/assets/chat_telegram.png"
+                  alt="Служебный чат Telegram"
+                  className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => setModalImage({ src: "/assets/chat_telegram.png", alt: "Служебный чат Telegram" })}
+                  loading="lazy"
+                  decoding="async"
+                  fetchpriority="high"
+                />
+              </picture>
             </div>
           </div>
 
@@ -120,13 +134,26 @@ const AccountSwitchGuide = () => {
               В этом чате найдите сообщение о подключении к сайту <span className="text-white font-medium">dshb.lemifar.ru</span>.
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
-              <img
-                src="/assets/find_msg.png"
-                alt="Сообщение о подключении к dshb.lemifar.ru"
-                className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() => setModalImage({ src: "/assets/find_msg.png", alt: "Сообщение о подключении к dshb.lemifar.ru" })}
-                loading="lazy"
-              />
+              <picture>
+                <source
+                  srcSet="/assets/find_msg.png"
+                  type="image/png"
+                  media="(min-width: 1024px)"
+                />
+                <source
+                  srcSet="/assets/find_msg.png"
+                  type="image/png"
+                  media="(max-width: 1023px)"
+                />
+                <img
+                  src="/assets/find_msg.png"
+                  alt="Сообщение о подключении к dshb.lemifar.ru"
+                  className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => setModalImage({ src: "/assets/find_msg.png", alt: "Сообщение о подключении к dshb.lemifar.ru" })}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </picture>
             </div>
           </div>
 
@@ -142,13 +169,26 @@ const AccountSwitchGuide = () => {
               Под сообщением о подключении нажмите кнопку <span className="text-red-400 font-medium">"Отключить" </span>или<span className="text-red-400 font-medium"> "Disconnect"</span>.
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
-              <img
-                src="/assets/btn.png"
-                alt="Кнопка 'Отключить' под сообщением"
-                className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() => setModalImage({ src: "/assets/btn.png", alt: "Кнопка 'Отключить' под сообщением" })}
-                loading="lazy"
-              />
+              <picture>
+                <source
+                  srcSet="/assets/btn.png"
+                  type="image/png"
+                  media="(min-width: 1024px)"
+                />
+                <source
+                  srcSet="/assets/btn.png"
+                  type="image/png"
+                  media="(max-width: 1023px)"
+                />
+                <img
+                  src="/assets/btn.png"
+                  alt="Кнопка 'Отключить' под сообщением"
+                  className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => setModalImage({ src: "/assets/btn.png", alt: "Кнопка 'Отключить' под сообщением" })}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </picture>
             </div>
           </div>
 
@@ -165,13 +205,26 @@ const AccountSwitchGuide = () => {
               <span className="text-yellow-400 font-medium"> "Выйти"</span>.
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
-              <img
-                src="/assets/exit.png"
-                alt="Выход из аккаунта"
-                className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() => setModalImage({ src: "/assets/exit.png", alt: "Выход из аккаунта" })}
-                loading="lazy"
-              />
+              <picture>
+                <source
+                  srcSet="/assets/exit.png"
+                  type="image/png"
+                  media="(min-width: 1024px)"
+                />
+                <source
+                  srcSet="/assets/exit.png"
+                  type="image/png"
+                  media="(max-width: 1023px)"
+                />
+                <img
+                  src="/assets/exit.png"
+                  alt="Выход из аккаунта"
+                  className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => setModalImage({ src: "/assets/exit.png", alt: "Выход из аккаунта" })}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </picture>
             </div>
           </div>
 
@@ -187,13 +240,26 @@ const AccountSwitchGuide = () => {
               После выхода введите номер телефона того аккаунта Telegram, под которым хотите войти в систему.
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
-              <img
-                src="/assets/end.png"
-                alt="Ввод номера телефона"
-                className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() => setModalImage({ src: "/assets/end.png", alt: "Ввод номера телефона" })}
-                loading="lazy"
-              />
+              <picture>
+                <source
+                  srcSet="/assets/end.png"
+                  type="image/png"
+                  media="(min-width: 1024px)"
+                />
+                <source
+                  srcSet="/assets/end.png"
+                  type="image/png"
+                  media="(max-width: 1023px)"
+                />
+                <img
+                  src="/assets/end.png"
+                  alt="Ввод номера телефона"
+                  className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => setModalImage({ src: "/assets/end.png", alt: "Ввод номера телефона" })}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </picture>
             </div>
           </div>
         </div>
