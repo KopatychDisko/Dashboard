@@ -148,7 +148,7 @@ const LoginPage = () => {
             </button>
           </div>
 
-          <div className="border-t border-white/10 pt-6">
+          <div className="mt-8">
             <div className="space-y-3">
               <div className="flex items-start gap-3">
                 <span className="text-emerald-400 text-lg">✓</span>
