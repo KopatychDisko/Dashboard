@@ -99,10 +99,10 @@ const AccountSwitchGuide = () => {
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
               <img
-                  src="/assets/chat_telegram.webp"
+                  src="/assets/chat_telegram.png"
                   alt="Служебный чат Telegram"
                   className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                  onClick={() => setModalImage({ src: '/assets/chat_telegram.webp', alt: 'Служебный чат Telegram' })}
+                  onClick={() => setModalImage({ src: '/assets/chat_telegram.png', alt: 'Служебный чат Telegram' })}
                   loading="lazy"
                   decoding="async"
                   fetchpriority="high"
@@ -123,10 +123,10 @@ const AccountSwitchGuide = () => {
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
               <img
-                  src="/assets/find_msg.webp"
+                  src="/assets/find_msg.png"
                   alt="Сообщение о подключении к dshb.lemifar.ru"
                   className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                  onClick={() => setModalImage({ src: "/assets/find_msg.webp", alt: "Сообщение о подключении к dshb.lemifar.ru" })}
+                  onClick={() => setModalImage({ src: "/assets/find_msg.png", alt: "Сообщение о подключении к dshb.lemifar.ru" })}
                   loading="lazy"
                   decoding="async"
                 />
@@ -146,10 +146,10 @@ const AccountSwitchGuide = () => {
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
               <img
-                  src="/assets/btn.webp"
+                  src="/assets/btn.png"
                   alt="Кнопка 'Отключить' под сообщением"
                   className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                  onClick={() => setModalImage({ src: "/assets/btn.webp", alt: "Кнопка 'Отключить' под сообщением" })}
+                  onClick={() => setModalImage({ src: "/assets/btn.png", alt: "Кнопка 'Отключить' под сообщением" })}
                   loading="lazy"
                   decoding="async"
                 />
@@ -170,10 +170,10 @@ const AccountSwitchGuide = () => {
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
               <img
-                  src="/assets/exit.webp"
+                  src="/assets/exit.png"
                   alt="Выход из аккаунта"
                   className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                  onClick={() => setModalImage({ src: "/assets/exit.webp", alt: "Выход из аккаунта" })}
+                  onClick={() => setModalImage({ src: "/assets/exit.png", alt: "Выход из аккаунта" })}
                   loading="lazy"
                   decoding="async"
                 />
@@ -193,10 +193,10 @@ const AccountSwitchGuide = () => {
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
               <img
-                  src="/assets/end.webp"
+                  src="/assets/end.png"
                   alt="Ввод номера телефона"
                   className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                  onClick={() => setModalImage({ src: "/assets/end.webp", alt: "Ввод номера телефона" })}
+                  onClick={() => setModalImage({ src: "/assets/end.png", alt: "Ввод номера телефона" })}
                   loading="lazy"
                   decoding="async"
                 />
