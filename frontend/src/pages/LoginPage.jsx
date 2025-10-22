@@ -13,7 +13,7 @@ const LoginPage = () => {
   const [success, setSuccess] = useState(false)
   const handlerRef = useRef(null)
 
-  useEffect(() => {
+  const initTelegramWidget = () => {
     if (typeof window === 'undefined') return
 
     const container = document.getElementById('telegram-login-container')
@@ -36,11 +36,27 @@ const LoginPage = () => {
       'data-telegram-login',
       import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'DashBoardMetricksBot'
     )
-    script.setAttribute('data-size', 'large')
+    // Определяем размер кнопки в зависимости от ширины экрана
+    script.setAttribute('data-size', window.innerWidth < 768 ? 'medium' : 'large')
     script.setAttribute('data-radius', '12')
     script.setAttribute('data-request-access', 'write')
     script.setAttribute('data-userpic', 'false')
     script.setAttribute('data-onauth', 'onTelegramAuth(user)')
+  }
+
+  useEffect(() => {
+    initTelegramWidget()
+
+    // Добавляем слушатель изменения размера окна
+    const handleResize = () => {
+      initTelegramWidget()
+    }
+    window.addEventListener('resize', handleResize)
+
+    // Очищаем слушатель при размонтировании
+    return () => {
+      window.removeEventListener('resize', handleResize)
+    }
 
     script.onerror = (e) => {
       setError('Не удалось загрузить Telegram виджет. Проверьте подключение и CSP.')
