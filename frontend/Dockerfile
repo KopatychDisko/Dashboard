@@ -48,8 +48,8 @@ FROM nginx:alpine
 # Создание директории для внешних ассетов
 RUN mkdir -p /usr/share/nginx/assets
 
-# Копирование собранного приложения из build stage
-COPY --from=build /app/dist /usr/share/nginx/html
+# Копирование собранного приложения из builder stage
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Копирование конфигурации nginx
 COPY nginx.conf /etc/nginx/conf.d/default.conf
