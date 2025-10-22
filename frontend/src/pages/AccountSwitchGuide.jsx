@@ -39,15 +39,48 @@ const AccountSwitchGuide = () => {
   const navigate = useNavigate()
 
   return (
-    <div className="min-h-screen p-6">
+    <div className="min-h-screen p-4 lg:p-6">
       <div className="max-w-2xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold gradient-text">Как сменить Telegram аккаунт</h1>
+        {/* Мобильная версия */}
+        <div className="flex lg:hidden items-center mb-8">
           <button
             onClick={() => navigate('/login')}
-            className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all group"
           >
-            Назад к логину
+            <svg 
+              className="w-5 h-5 transition-transform group-hover:-translate-x-1" 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            <span>Назад</span>
+          </button>
+          
+          <h1 className="text-xl font-bold gradient-text mx-auto">
+            Как сменить аккаунт
+          </h1>
+        </div>
+
+        {/* Десктопная версия */}
+        <div className="hidden lg:flex items-center justify-between mb-10">
+          <h1 className="text-2xl font-bold gradient-text">
+            Как сменить Telegram аккаунт
+          </h1>
+          <button
+            onClick={() => navigate('/login')}
+            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all group"
+          >
+            <span>Вернуться к логину</span>
+            <svg 
+              className="w-5 h-5 transition-transform group-hover:translate-x-1" 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
           </button>
         </div>
 
@@ -64,12 +97,13 @@ const AccountSwitchGuide = () => {
               Откройте Telegram и найдите чат с уведомлениями о безопасности, в который пришло сообщение 
               о первом подключении к сайту.
             </p>
-            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
+            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
               <img
                 src="/assets/chat_telegram.png"
                 alt="Служебный чат Telegram"
-                className="object-contain max-h-full max-w-full cursor-pointer hover:opacity-90 transition-opacity"
+                className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
                 onClick={() => setModalImage({ src: "/assets/chat_telegram.png", alt: "Служебный чат Telegram" })}
+                loading="lazy"
               />
             </div>
           </div>
@@ -85,12 +119,13 @@ const AccountSwitchGuide = () => {
             <p className="text-white/80 mb-4">
               В этом чате найдите сообщение о подключении к сайту <span className="text-white font-medium">dshb.lemifar.ru</span>.
             </p>
-            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
+            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
               <img
                 src="/assets/find_msg.png"
                 alt="Сообщение о подключении к dshb.lemifar.ru"
-                className="object-contain max-h-full max-w-full cursor-pointer hover:opacity-90 transition-opacity"
+                className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
                 onClick={() => setModalImage({ src: "/assets/find_msg.png", alt: "Сообщение о подключении к dshb.lemifar.ru" })}
+                loading="lazy"
               />
             </div>
           </div>
@@ -106,12 +141,13 @@ const AccountSwitchGuide = () => {
             <p className="text-white/80 mb-4">
               Под сообщением о подключении нажмите кнопку <span className="text-red-400 font-medium">"Отключить" </span>или<span className="text-red-400 font-medium"> "Disconnect"</span>.
             </p>
-            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
+            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
               <img
                 src="/assets/btn.png"
                 alt="Кнопка 'Отключить' под сообщением"
-                className="object-contain max-h-full max-w-full cursor-pointer hover:opacity-90 transition-opacity"
+                className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
                 onClick={() => setModalImage({ src: "/assets/btn.png", alt: "Кнопка 'Отключить' под сообщением" })}
+                loading="lazy"
               />
             </div>
           </div>
@@ -128,12 +164,13 @@ const AccountSwitchGuide = () => {
               Вернитесь на сайт, нажмите "Войти через Telegram". В окне авторизации найдите и нажмите кнопку 
               <span className="text-yellow-400 font-medium"> "Выйти"</span>.
             </p>
-            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
+            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
               <img
                 src="/assets/exit.png"
                 alt="Выход из аккаунта"
-                className="object-contain max-h-full max-w-full cursor-pointer hover:opacity-90 transition-opacity"
+                className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
                 onClick={() => setModalImage({ src: "/assets/exit.png", alt: "Выход из аккаунта" })}
+                loading="lazy"
               />
             </div>
           </div>
@@ -149,12 +186,13 @@ const AccountSwitchGuide = () => {
             <p className="text-white/80 mb-4">
               После выхода введите номер телефона того аккаунта Telegram, под которым хотите войти в систему.
             </p>
-            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60">
+            <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
               <img
                 src="/assets/end.png"
                 alt="Ввод номера телефона"
-                className="object-contain max-h-full max-w-full cursor-pointer hover:opacity-90 transition-opacity"
+                className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
                 onClick={() => setModalImage({ src: "/assets/end.png", alt: "Ввод номера телефона" })}
+                loading="lazy"
               />
             </div>
           </div>
