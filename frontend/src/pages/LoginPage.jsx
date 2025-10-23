@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../hooks/useAuth.jsx'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 const TELEGRAM_SCRIPT_ID = 'telegram-login-script'
 
 const LoginPage = () => {
   const navigate = useNavigate()
+  const { login } = useAuth()
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -34,8 +36,6 @@ const LoginPage = () => {
       script.async = true
       console.log('Creating new Telegram widget')
       
-      const redirectUrl = `${window.location.origin}/bots`
-      
       script.setAttribute(
         'data-telegram-login',
         import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'DashBoardMetricksBot'
@@ -44,7 +44,34 @@ const LoginPage = () => {
       script.setAttribute('data-radius', '12')
       script.setAttribute('data-request-access', 'write')
       script.setAttribute('data-userpic', 'false')
-      script.setAttribute('data-auth-url', redirectUrl)
+      script.setAttribute('data-onauth', 'onTelegramAuth(user)')
+
+      // Определяем глобальную функцию авторизации
+      window.onTelegramAuth = async (telegramUser) => {
+        console.log('Telegram auth triggered:', telegramUser)
+        if (!isComponentMounted) return
+
+        try {
+          const result = await login({
+            telegram_id: telegramUser.id,
+            first_name: telegramUser.first_name,
+            last_name: telegramUser.last_name || null,
+            username: telegramUser.username || null,
+            photo_url: telegramUser.photo_url || null,
+            auth_date: telegramUser.auth_date,
+            hash: telegramUser.hash
+          })
+
+          if (result?.success) {
+            navigate('/bots')
+          } else {
+            setError(result?.error || 'Ошибка авторизации')
+          }
+        } catch (err) {
+          console.error('Auth error:', err)
+          setError('Не удалось войти через Telegram. Попробуйте снова.')
+        }
+      }
       
       script.onerror = (e) => {
         console.error('Telegram widget load error:', e)
@@ -94,9 +121,7 @@ const LoginPage = () => {
       const script = document.getElementById(TELEGRAM_SCRIPT_ID)
       if (script) script.remove()
     }
-  }, [loading])
-
-  // Редирект происходит через useEffect
+  }, [loading, login, navigate])
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
