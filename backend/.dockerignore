@@ -1,33 +1,17 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
+__pycache__
+*.pyc
+*.pyo
+*.pyd
 .Python
-
-# Virtual environments - ЭТО ГЛАВНОЕ!
-venv/
-env/
-ENV/
-.venv
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Testing
-.pytest_cache/
+.env
+*.log
+.git
+.gitignore
+.idea
+.vscode
+.pytest_cache
 .coverage
 htmlcov/
-
-# Build
 dist/
 build/
 *.egg-info/

@@ -12,8 +12,6 @@ services:
       - FRONTEND_URL=https://dshb.lemifar.ru
       - CORS_ORIGINS=https://dshb.lemifar.ru
     restart: unless-stopped
-    depends_on:
-      - redis
     networks:
       - telegram-dashboard
 
@@ -32,17 +30,6 @@ services:
     networks:
       - telegram-dashboard
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    restart: unless-stopped
-    networks:
-      - telegram-dashboard
-
 networks:
   telegram-dashboard:
     driver: bridge
-
-volumes:
-  redis_data:
