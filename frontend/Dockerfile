@@ -1,18 +1,24 @@
-# Build stage
-FROM node:18-alpine AS builder
+# Dependencies stage
+FROM node:18-alpine AS deps
+
+WORKDIR /app
 
 # Устанавливаем зависимости для более быстрой сборки
 RUN apk add --no-cache libc6-compat
 
-WORKDIR /app
-
 # Копирование файлов зависимостей
 COPY package*.json ./
 
-# Установка ВСЕХ зависимостей (включая dev для сборки)
+# Установка зависимостей с кэшированием
 RUN npm ci --prefer-offline --no-audit
 
-# Копирование исходного кода
+# Builder stage
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Копируем зависимости из предыдущего этапа
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Очищаем assets и создаем dist
