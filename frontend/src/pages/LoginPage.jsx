@@ -84,25 +84,75 @@ const LoginPage = () => {
       script.onload = () => {
         console.log('Telegram widget script loaded')
         
-        // Проверяем инициализацию виджета
+        // Проверяем инициализацию виджета и появление iframe
         checkWidgetInterval = setInterval(() => {
-          if (window.Telegram && window.Telegram.Login && window.Telegram.Login.auth) {
-            console.log('Telegram widget initialized')
+          const container = document.getElementById('telegram-login-container')
+          const iframe = container?.querySelector('iframe')
+          const isWidgetReady = window.Telegram && window.Telegram.Login && window.Telegram.Login.auth
+          
+          console.log('Checking widget:', { 
+            hasIframe: !!iframe, 
+            isWidgetReady,
+            containerContent: container?.innerHTML 
+          })
+          
+          if (iframe && isWidgetReady) {
+            console.log('Telegram widget fully initialized with iframe')
             if (isComponentMounted) {
               clearInterval(checkWidgetInterval)
               setLoading(false)
+              
+              // Дополнительная проверка работоспособности виджета
+              if (typeof window.onTelegramAuth !== 'function') {
+                console.warn('Reinitializing onTelegramAuth handler')
+                window.onTelegramAuth = async (telegramUser) => {
+                  console.log('Telegram auth triggered:', telegramUser)
+                  if (!isComponentMounted) return
+                  
+                  try {
+                    const result = await login({
+                      telegram_id: telegramUser.id,
+                      first_name: telegramUser.first_name,
+                      last_name: telegramUser.last_name || null,
+                      username: telegramUser.username || null,
+                      photo_url: telegramUser.photo_url || null,
+                      auth_date: telegramUser.auth_date,
+                      hash: telegramUser.hash
+                    })
+
+                    if (result?.success) {
+                      navigate('/bots')
+                    } else {
+                      setError(result?.error || 'Ошибка авторизации')
+                    }
+                  } catch (err) {
+                    console.error('Auth error:', err)
+                    setError('Не удалось войти через Telegram. Попробуйте снова.')
+                  }
+                }
+              }
             }
           }
         }, 100)
 
-        // Таймаут на инициализацию
+        // Увеличиваем таймаут до 10 секунд
         initTimeout = setTimeout(() => {
           if (checkWidgetInterval) clearInterval(checkWidgetInterval)
           if (isComponentMounted && loading) {
-            setError('Не удалось инициализировать Telegram виджет')
+            const container = document.getElementById('telegram-login-container')
+            const iframe = container?.querySelector('iframe')
+            const isWidgetReady = window.Telegram && window.Telegram.Login && window.Telegram.Login.auth
+            
+            console.error('Widget initialization timeout:', {
+              hasIframe: !!iframe,
+              isWidgetReady,
+              containerContent: container?.innerHTML
+            })
+            
+            setError('Не удалось инициализировать Telegram виджет. Попробуйте перезагрузить страницу.')
             setLoading(false)
           }
-        }, 5000)
+        }, 10000)
       }
 
       container.appendChild(script)
