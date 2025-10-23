@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { botsAPI } from '../utils/api'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -7,15 +7,53 @@ import LoadingOverlay from '../components/LoadingOverlay'
 import { Bot, Users, Activity, ChevronRight, LogOut } from 'lucide-react'
 
 const BotSelectionPage = () => {
-  const { user, logout } = useAuth()
+  const { user, logout, login } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [bots, setBots] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    loadUserBots()
-  }, [user])
+    // Проверяем наличие параметров авторизации в URL
+    const params = new URLSearchParams(location.search)
+    const telegramAuthData = {
+      telegram_id: Number(params.get('id')),
+      first_name: params.get('first_name'),
+      last_name: params.get('last_name') || null,
+      username: params.get('username') || null,
+      photo_url: params.get('photo_url') || null,
+      auth_date: Number(params.get('auth_date')),
+      hash: params.get('hash')
+    }
+
+    // Если есть параметры авторизации, выполняем вход
+    if (telegramAuthData.telegram_id && telegramAuthData.hash) {
+      handleTelegramAuth(telegramAuthData)
+    } else if (user) {
+      loadUserBots()
+    } else {
+      navigate('/login')
+    }
+  }, [location.search, user])
+
+  const handleTelegramAuth = async (telegramData) => {
+    try {
+      const result = await login(telegramData)
+      if (result?.success) {
+        // Очищаем URL от параметров авторизации
+        navigate('/bots', { replace: true })
+        loadUserBots()
+      } else {
+        setError(result?.error || 'Ошибка авторизации')
+        setTimeout(() => navigate('/login'), 3000)
+      }
+    } catch (err) {
+      console.error('Auth error:', err)
+      setError('Ошибка авторизации')
+      setTimeout(() => navigate('/login'), 3000)
+    }
+  }
 
   const loadUserBots = async () => {
     try {
