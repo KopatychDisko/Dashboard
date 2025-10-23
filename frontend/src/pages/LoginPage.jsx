@@ -92,25 +92,13 @@ const LoginPage = () => {
     }
   }, [login])
 
-  if (success) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="max-w-md w-full">
-          <div className="glass-card relative p-10 text-center">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-r from-emerald-400 to-blue-400 flex items-center justify-center text-4xl">
-              ✓
-            </div>
+  useEffect(() => {
+    if (success) {
+      navigate('/bots')
+    }
+  }, [success, navigate])
 
-            <h2 className="text-2xl font-bold mb-3 gradient-text">Успешно!</h2>
-
-            <p className="text-white/70 mb-6">Перенаправление на страницу выбора ботов...</p>
-
-            <LoadingSpinner size="sm" />
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // Редирект происходит через useEffect
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
