@@ -45,6 +45,7 @@ const LoginPage = () => {
       script.setAttribute('data-request-access', 'write')
       script.setAttribute('data-userpic', 'false')
       script.setAttribute('data-onauth', 'onTelegramAuth(user)')
+      script.setAttribute('data-auth-url', 'https://dshb.lemifar.ru/bots')
 
       // Определяем глобальную функцию авторизации
       window.onTelegramAuth = async (telegramUser) => {
