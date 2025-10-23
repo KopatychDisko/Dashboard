@@ -18,7 +18,7 @@ export default defineConfig({
     cssMinify: 'esbuild',
     modulePreload: false,
     reportCompressedSize: false,
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 2000,
     emptyOutDir: true,
     rollupOptions: {
       treeshake: true,
