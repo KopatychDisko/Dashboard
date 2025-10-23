@@ -30,8 +30,9 @@ const LoginPage = () => {
     // Создаем новый скрипт с anti-cache и force_auth
     const script = document.createElement('script')
     script.id = TELEGRAM_SCRIPT_ID
-    script.src = `https://telegram.org/js/telegram-widget.js?22&ts=${Date.now()}&force_auth=true`
+    script.src = `https://telegram.org/js/telegram-widget.js?22&ts=${Date.now()}`
     script.async = true
+    console.log('Creating new Telegram widget')
     script.setAttribute(
       'data-telegram-login',
       import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'DashBoardMetricksBot'
@@ -50,10 +51,12 @@ const LoginPage = () => {
 
     // Определяем глобальную функцию авторизации
     const onTelegramAuth = async (telegramUser) => {
+      console.log('Telegram auth triggered:', telegramUser)
       setLoading(true)
       setError('')
 
       try {
+        console.log('Starting login process')
         const result = await login({
           telegram_id: telegramUser.id,
           first_name: telegramUser.first_name,
@@ -64,8 +67,17 @@ const LoginPage = () => {
           hash: telegramUser.hash
         })
 
-        if (result?.success) setSuccess(true)
-        else setError(result?.error || 'Ошибка авторизации')
+        console.log('Login result:', result)
+        if (result?.success) {
+          console.log('Login successful, cleaning up widget')
+          setSuccess(true)
+          // Очищаем виджет после успешной авторизации
+          const container = document.getElementById('telegram-login-container')
+          if (container) container.innerHTML = ''
+        } else {
+          console.log('Login failed:', result?.error)
+          setError(result?.error || 'Ошибка авторизации')
+        }
       } catch (err) {
         setError('Не удалось войти через Telegram. Попробуйте снова.')
         console.error('Auth error:', err)
