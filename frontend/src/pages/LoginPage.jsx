@@ -1,59 +1,100 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import LoadingSpinner from '../components/LoadingSpinner'
 
 const TELEGRAM_SCRIPT_ID = 'telegram-login-script'
 
 const LoginPage = () => {
   const navigate = useNavigate()
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    let isComponentMounted = true
+    let checkWidgetInterval = null
+    let initTimeout = null
 
-    const container = document.getElementById('telegram-login-container')
-    if (!container) {
-      console.warn('Telegram container not found: #telegram-login-container')
-      return
+    const initTelegramWidget = () => {
+      if (typeof window === 'undefined') return
+
+      const container = document.getElementById('telegram-login-container')
+      if (!container) {
+        console.warn('Telegram container not found: #telegram-login-container')
+        return
+      }
+
+      // Очищаем только старый скрипт, но не контейнер
+      const prevScript = document.getElementById(TELEGRAM_SCRIPT_ID)
+      if (prevScript) prevScript.remove()
+
+      // Создаем новый скрипт
+      const script = document.createElement('script')
+      script.id = TELEGRAM_SCRIPT_ID
+      script.src = `https://telegram.org/js/telegram-widget.js?22&ts=${Date.now()}`
+      script.async = true
+      console.log('Creating new Telegram widget')
+      
+      const redirectUrl = `${window.location.origin}/bots`
+      
+      script.setAttribute(
+        'data-telegram-login',
+        import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'DashBoardMetricksBot'
+      )
+      script.setAttribute('data-size', 'medium')
+      script.setAttribute('data-radius', '12')
+      script.setAttribute('data-request-access', 'write')
+      script.setAttribute('data-userpic', 'false')
+      script.setAttribute('data-auth-url', redirectUrl)
+      
+      script.onerror = (e) => {
+        console.error('Telegram widget load error:', e)
+        if (isComponentMounted) {
+          setError('Не удалось загрузить Telegram виджет. Проверьте подключение и CSP.')
+          setLoading(false)
+        }
+      }
+
+      script.onload = () => {
+        console.log('Telegram widget script loaded')
+        
+        // Проверяем инициализацию виджета
+        checkWidgetInterval = setInterval(() => {
+          if (window.Telegram && window.Telegram.Login && window.Telegram.Login.auth) {
+            console.log('Telegram widget initialized')
+            if (isComponentMounted) {
+              clearInterval(checkWidgetInterval)
+              setLoading(false)
+            }
+          }
+        }, 100)
+
+        // Таймаут на инициализацию
+        initTimeout = setTimeout(() => {
+          if (checkWidgetInterval) clearInterval(checkWidgetInterval)
+          if (isComponentMounted && loading) {
+            setError('Не удалось инициализировать Telegram виджет')
+            setLoading(false)
+          }
+        }, 5000)
+      }
+
+      container.appendChild(script)
     }
 
-    // Cleanup старого скрипта и контейнера перед новым монтированием
-    const prevScript = document.getElementById(TELEGRAM_SCRIPT_ID)
-    if (prevScript) prevScript.remove()
-    container.innerHTML = ''
+    // Инициализируем виджет
+    initTelegramWidget()
 
-    // Создаем новый скрипт с anti-cache
-    const script = document.createElement('script')
-    script.id = TELEGRAM_SCRIPT_ID
-    script.src = `https://telegram.org/js/telegram-widget.js?22&ts=${Date.now()}`
-    script.async = true
-    console.log('Creating new Telegram widget')
-    
-    // Формируем URL для редиректа с учетом текущего домена
-    const redirectUrl = `${window.location.origin}/bots`
-    
-    script.setAttribute(
-      'data-telegram-login',
-      import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'DashBoardMetricksBot'
-    )
-    script.setAttribute('data-size', 'medium')
-    script.setAttribute('data-radius', '12')
-    script.setAttribute('data-request-access', 'write')
-    script.setAttribute('data-userpic', 'false')
-    script.setAttribute('data-auth-url', redirectUrl)
-    
-    script.onerror = (e) => {
-      console.error('Telegram widget load error:', e)
-    }
-
-    container.appendChild(script)
-
+    // Cleanup функция
     return () => {
-      // Чистим контейнер
-      container.innerHTML = ''
-      // Удаляем скрипт полностью
-      const s = document.getElementById(TELEGRAM_SCRIPT_ID)
-      if (s) s.remove()
+      isComponentMounted = false
+      if (checkWidgetInterval) clearInterval(checkWidgetInterval)
+      if (initTimeout) clearTimeout(initTimeout)
+      
+      // Удаляем только скрипт, но не чистим контейнер
+      const script = document.getElementById(TELEGRAM_SCRIPT_ID)
+      if (script) script.remove()
     }
-  }, [])
+  }, [loading])
 
   // Редирект происходит через useEffect
 
