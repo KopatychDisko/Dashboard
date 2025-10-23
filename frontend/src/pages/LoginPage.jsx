@@ -32,7 +32,7 @@ const LoginPage = () => {
       // Создаем новый скрипт
       const script = document.createElement('script')
       script.id = TELEGRAM_SCRIPT_ID
-      script.src = `https://telegram.org/js/telegram-widget.js?22&ts=${Date.now()}`
+      script.src = `https://telegram.org/js/telegram-widget.js?22`
       script.async = true
       console.log('Creating new Telegram widget')
       
