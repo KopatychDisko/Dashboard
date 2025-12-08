@@ -55,7 +55,7 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Открытие порта
-EXPOSE 8080
+EXPOSE 80
 
 # Создание volume для ассетов
 VOLUME /usr/share/nginx/assets

@@ -112,6 +112,42 @@
     background: linear-gradient(45deg, #00c6fb, #00d4aa);
   }
   
+  /* Убираем обводку у Telegram виджета - все возможные варианты */
+  #telegram-login-container,
+  #telegram-login-container *,
+  #telegram-login-container iframe,
+  iframe[id*="telegram-login"],
+  iframe[src*="oauth.telegram.org"] {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+    -moz-box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  
+  /* Убираем все состояния focus, hover, active */
+  #telegram-login-container *:focus,
+  #telegram-login-container *:hover,
+  #telegram-login-container *:active,
+  iframe[id*="telegram-login"]:focus,
+  iframe[id*="telegram-login"]:hover,
+  iframe[id*="telegram-login"]:active {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+    -moz-box-shadow: none !important;
+  }
+  
+  /* Убираем красные обводки валидации */
+  #telegram-login-container *:invalid,
+  iframe[id*="telegram-login"]:invalid {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
   /* Responsive Design */
   @media (max-width: 768px) {
     body {

@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { botsAPI } from '../utils/api'
-import LoadingSpinner from '../components/LoadingSpinner'
 import LoadingOverlay from '../components/LoadingOverlay'
-import { Bot, Users, Activity, ChevronRight, LogOut } from 'lucide-react'
+import { Bot, Users, ChevronRight, LogOut } from 'lucide-react'
 
 const BotSelectionPage = () => {
   const { user, logout, login } = useAuth()
@@ -18,44 +17,69 @@ const BotSelectionPage = () => {
     // Проверяем наличие параметров авторизации в URL
     const params = new URLSearchParams(location.search)
     const telegramAuthData = {
-      telegram_id: Number(params.get('id')),
+      telegram_id: params.get('id') ? Number(params.get('id')) : null,
       first_name: params.get('first_name'),
       last_name: params.get('last_name') || null,
       username: params.get('username') || null,
       photo_url: params.get('photo_url') || null,
-      auth_date: Number(params.get('auth_date')),
+      auth_date: params.get('auth_date') ? Number(params.get('auth_date')) : null,
       hash: params.get('hash')
     }
 
+    // Убираем лишние логи для ускорения
+
     // Если есть параметры авторизации, выполняем вход
-    if (telegramAuthData.telegram_id && telegramAuthData.hash) {
+    if (telegramAuthData.telegram_id && telegramAuthData.hash && telegramAuthData.first_name) {
+      // Обрабатываем авторизацию Telegram
       handleTelegramAuth(telegramAuthData)
-    } else if (user) {
+    } else if (user && user.telegram_id) {
       loadUserBots()
     } else {
-      navigate('/login')
+      navigate('/login', { replace: true })
     }
-  }, [location.search, user])
+  }, [location.search, user, navigate])
 
   const handleTelegramAuth = async (telegramData) => {
     try {
+      setLoading(true)
+      setError('')
+      
       const result = await login(telegramData)
+      
       if (result?.success) {
-        // Очищаем URL от параметров авторизации
         navigate('/bots', { replace: true })
-        loadUserBots()
+        
+        try {
+          const botsResponse = await botsAPI.getUserBots(telegramData.telegram_id)
+          if (botsResponse.data.success) {
+            setBots(botsResponse.data.bots)
+          } else {
+            setError('Не удалось загрузить список ботов')
+          }
+        } catch (err) {
+          console.error('Ошибка загрузки ботов:', err)
+          setError('Ошибка загрузки ботов')
+        }
       } else {
         setError(result?.error || 'Ошибка авторизации')
-        setTimeout(() => navigate('/login'), 3000)
+        setLoading(false)
+        setTimeout(() => navigate('/login', { replace: true }), 3000)
       }
     } catch (err) {
-      console.error('Auth error:', err)
-      setError('Ошибка авторизации')
-      setTimeout(() => navigate('/login'), 3000)
+      console.error('Ошибка авторизации:', err)
+      setError('Ошибка авторизации. Попробуйте снова.')
+      setLoading(false)
+      setTimeout(() => navigate('/login', { replace: true }), 3000)
     }
   }
 
   const loadUserBots = async () => {
+    if (!user || !user.telegram_id) {
+      setError('Пользователь не авторизован')
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       const response = await botsAPI.getUserBots(user.telegram_id)
