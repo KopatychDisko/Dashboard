@@ -35,7 +35,7 @@ async def get_user_bots(telegram_id: int):
                 logger.info(f"🔍 Подсчет пользователей для bot_id: {bot_id}")
                 users_response = bot_client.client.table('sales_users').select(
                     'telegram_id'
-                ).eq('bot_id', bot_id).neq('first_name', 'Test').execute()
+                ).eq('bot_id', bot_id).not_.like('first_name', 'Test%').execute()
                 
                 logger.info(f"📊 Ответ от БД: data={users_response.data}")
                 logger.info(f"📊 Тип данных: {type(users_response.data)}")

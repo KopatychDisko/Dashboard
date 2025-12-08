@@ -34,11 +34,18 @@ async def get_dashboard_analytics(
         logger.info(f"🎯 Получение воронки продаж...")
         funnel_data = await db_client.get_funnel_stats(bot_id, days)
         
+        # Получаем данные роста пользователей
+        logger.info(f"📈 Получение данных роста пользователей...")
+        # Вычисляем базовое количество: общее количество минус новые за период
+        base_total = max(0, metrics_data.get('total_users', 0) - metrics_data.get('new_users', 0))
+        user_growth_data = await db_client.get_user_growth_data(bot_id, days, base_total)
+        
         # Формируем ответ
         response = {
             "bot_id": bot_id,
             "metrics": metrics_data,
             "funnel": funnel_data,
+            "user_growth": user_growth_data,
             "generated_at": datetime.now().isoformat()
         }
         

@@ -126,20 +126,17 @@ class SupabaseClient:
         try:
             cutoff_date = datetime.now() - timedelta(days=days)
             
-            # Получаем пользователей бота (исключая тестовых)
-            users_query = self.client.table('sales_users').select('telegram_id').eq('bot_id', bot_id).not_.like('first_name', 'Test%')
-            users_response = users_query.execute()
-            total_users = len(users_response.data) if users_response.data else 0
-            
-            # Сначала получаем список реальных пользователей
-            real_users_query = self.client.table('sales_users').select('telegram_id').eq('bot_id', bot_id).not_.like('first_name', 'Test')
+            # Получаем всех реальных пользователей бота (исключая тестовых)
+            # Используем единый фильтр для консистентности
+            real_users_query = self.client.table('sales_users').select('telegram_id').eq('bot_id', bot_id).not_.like('first_name', 'Test%')
             real_users_response = real_users_query.execute()
             real_user_ids = [u['telegram_id'] for u in (real_users_response.data or [])]
+            total_users = len(real_user_ids)
             
             # Получаем новых пользователей за период (исключая тестовых)
             new_users_query = self.client.table('sales_users').select('telegram_id').eq(
                 'bot_id', bot_id
-            ).not_.like('first_name', 'Test').gte('created_at', cutoff_date.isoformat())
+            ).not_.like('first_name', 'Test%').gte('created_at', cutoff_date.isoformat())
             new_users_response = new_users_query.execute()
             new_users = len(new_users_response.data) if new_users_response.data else 0
             
@@ -263,6 +260,79 @@ class SupabaseClient:
             }
     
     # Метод get_revenue_by_days удалён по требованию. Оставлены метрики и воронка.
+    
+    async def get_user_growth_data(self, bot_id: str, days: int = 7, base_total: int = 0) -> List[Dict[str, Any]]:
+        """Получает данные роста пользователей по дням (оптимизированная версия)"""
+        try:
+            cutoff_date = datetime.now() - timedelta(days=days)
+            
+            # Получаем всех пользователей за период одним запросом
+            users_query = self.client.table('sales_users').select('telegram_id,created_at').eq(
+                'bot_id', bot_id
+            ).not_.like('first_name', 'Test%').gte('created_at', cutoff_date.isoformat())
+            users_response = users_query.execute()
+            all_users = users_response.data if users_response.data else []
+            
+            # Получаем все сессии за период одним запросом
+            sessions_query = self.client.table('sales_chat_sessions').select('user_id,created_at').eq(
+                'bot_id', bot_id
+            ).gte('created_at', cutoff_date.isoformat())
+            sessions_response = sessions_query.execute()
+            all_sessions = sessions_response.data if sessions_response.data else []
+            
+            # Создаем множество реальных пользователей из уже полученных данных
+            real_user_ids = {u['telegram_id'] for u in all_users}
+            
+            # Группируем данные по дням
+            growth_data = []
+            daily_new_users = {}
+            daily_active_users = {}
+            
+            # Подсчитываем новых пользователей по дням
+            for user in all_users:
+                if user.get('created_at'):
+                    user_date = datetime.fromisoformat(user['created_at'].replace('Z', '+00:00'))
+                    day_key = user_date.date().isoformat()
+                    daily_new_users[day_key] = daily_new_users.get(day_key, 0) + 1
+            
+            # Подсчитываем активных пользователей по дням
+            for session in all_sessions:
+                if session.get('user_id') and session.get('user_id') in real_user_ids:
+                    if session.get('created_at'):
+                        session_date = datetime.fromisoformat(session['created_at'].replace('Z', '+00:00'))
+                        day_key = session_date.date().isoformat()
+                        if day_key not in daily_active_users:
+                            daily_active_users[day_key] = set()
+                        daily_active_users[day_key].add(session['user_id'])
+            
+            # Формируем данные для каждого дня
+            # Используем базовое количество из metrics (передается как параметр)
+            current_total = base_total
+            for i in range(days):
+                date = datetime.now() - timedelta(days=days-1-i)
+                date_key = date.date().isoformat()
+                
+                # Новые пользователи за день
+                new_users = daily_new_users.get(date_key, 0)
+                current_total += new_users
+                
+                # Активные пользователи за день
+                active_set = daily_active_users.get(date_key, set())
+                active_users = len(active_set)
+                
+                growth_data.append({
+                    'date': date.isoformat(),
+                    'total_users': current_total,
+                    'new_users': new_users,
+                    'active_users': active_users
+                })
+            
+            logger.info(f"✅ Получены данные роста пользователей для бота {bot_id} за {days} дней")
+            return growth_data
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения данных роста пользователей: {e}")
+            return []
 
 # Создание глобального экземпляра
 def get_supabase_client(bot_id: str = None) -> SupabaseClient:

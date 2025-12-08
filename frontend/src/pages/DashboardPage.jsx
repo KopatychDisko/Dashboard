@@ -7,6 +7,7 @@ import LoadingOverlay from '../components/LoadingOverlay'
 import MetricsGrid from '../components/dashboard/MetricsGrid'
 import RevenueChart from '../components/dashboard/RevenueChart'
 import FunnelChart from '../components/dashboard/FunnelChart'
+import UserGrowthChart from '../components/dashboard/UserGrowthChart'
 import { ArrowLeft, RefreshCw, Calendar, Download, Users, Activity } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
@@ -66,19 +67,68 @@ const DashboardPage = () => {
     setRefreshing(false)
   }
 
+  const convertToCSV = (data) => {
+    if (!data || !analytics) return ''
+    
+    const rows = []
+    
+    // Заголовок
+    rows.push('Метрика,Значение')
+    
+    // Основные метрики
+    if (analytics.metrics) {
+      rows.push(`Активных сегодня,${analytics.metrics.active_today || 0}`)
+      rows.push(`Всего пользователей,${analytics.metrics.total_users || 0}`)
+      rows.push(`Новые пользователи,${analytics.metrics.new_users || 0}`)
+      rows.push(`Период (дней),${analytics.metrics.period_days || period}`)
+      
+      if (analytics.metrics.total_sessions) {
+        rows.push(`Всего сессий,${analytics.metrics.total_sessions}`)
+      }
+      if (analytics.metrics.total_revenue) {
+        rows.push(`Общая выручка,${analytics.metrics.total_revenue}`)
+      }
+      if (analytics.metrics.conversion_rate) {
+        rows.push(`Конверсия,${analytics.metrics.conversion_rate}%`)
+      }
+    }
+    
+    // Воронка продаж
+    if (analytics.funnel && analytics.funnel.steps) {
+      rows.push('')
+      rows.push('Воронка продаж')
+      rows.push('Этап,Пользователей')
+      analytics.funnel.steps.forEach(step => {
+        rows.push(`${step.stage || step.name || 'Неизвестно'},${step.users_count || 0}`)
+      })
+    }
+    
+    // Метаданные
+    rows.push('')
+    rows.push('Метаданные')
+    rows.push(`ID бота,${botId}`)
+    rows.push(`Период,${period} дней`)
+    rows.push(`Дата экспорта,${new Date().toLocaleString('ru-RU')}`)
+    
+    return rows.join('\n')
+  }
+
   const handleExport = async () => {
     try {
-      const response = await analyticsAPI.exportAnalytics(botId, period, 'json')
+      const response = await analyticsAPI.exportAnalytics(botId, period, 'csv')
+      
+      // Конвертируем данные в CSV
+      const csvContent = convertToCSV(response.data)
       
       // Создаем и скачиваем файл
-      const blob = new Blob([JSON.stringify(response.data, null, 2)], {
-        type: 'application/json'
+      const blob = new Blob(['\ufeff' + csvContent], {
+        type: 'text/csv;charset=utf-8;'
       })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.style.display = 'none'
       a.href = url
-      a.download = `analytics-${botId}-${period}days.json`
+      a.download = `analytics-${botId}-${period}days.csv`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -238,9 +288,14 @@ const DashboardPage = () => {
                   </p>
                 </div>
                 <p className="text-white/50 text-sm">
-                  за {analytics.metrics.period_days || 7} дней
+                  за {analytics.metrics.period_days || period} дней
                 </p>
               </div>
+            </div>
+            
+            {/* User Growth Chart */}
+            <div className="mb-6 lg:mb-8">
+              <UserGrowthChart data={analytics.user_growth || []} period={period} />
             </div>
             
             {/* Activity Feed */}
