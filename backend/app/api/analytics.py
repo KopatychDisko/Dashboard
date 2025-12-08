@@ -282,12 +282,9 @@ async def export_analytics(
             logger.info(f"✅ JSON экспорт для бота {bot_id} завершен")
             return export_data
         elif export_format == "csv":
-            # TODO: Добавить конвертацию в CSV
-            logger.warning(f"⚠️ CSV экспорт еще не реализован, возвращаем JSON")
-            return {
-                "message": "CSV экспорт будет добавлен в следующих версиях",
-                "data": export_data
-            }
+            # Возвращаем те же данные - конвертация в CSV происходит на фронтенде
+            logger.info(f"✅ CSV экспорт для бота {bot_id} завершен (конвертация на фронтенде)")
+            return export_data
         
     except Exception as e:
         logger.error(f"Ошибка экспорта аналитики для бота {bot_id}: {e}")
