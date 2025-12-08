@@ -1,20 +1,36 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
-import LoadingSpinner from '../components/LoadingSpinner'
 
 const TELEGRAM_SCRIPT_ID = 'telegram-login-script'
 
 const LoginPage = () => {
   const navigate = useNavigate()
-  const { login } = useAuth()
+  const { user } = useAuth()
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const loadingRef = useRef(true)
+  const widgetInitializedRef = useRef(false)
+
+  // Если пользователь уже авторизован, редиректим на /bots
+  useEffect(() => {
+    if (user && user.telegram_id) {
+      console.log('User already authenticated, redirecting to bots')
+      navigate('/bots', { replace: true })
+    }
+  }, [user, navigate])
 
   useEffect(() => {
+    // Если виджет уже инициализирован, не пересоздаем его
+    if (widgetInitializedRef.current) {
+      return
+    }
+
     let isComponentMounted = true
     let checkWidgetInterval = null
     let initTimeout = null
+    let resizeTimeout = null
+    loadingRef.current = true
 
     const initTelegramWidget = () => {
       if (typeof window === 'undefined') return
@@ -34,124 +50,126 @@ const LoginPage = () => {
       script.id = TELEGRAM_SCRIPT_ID
       script.src = `https://telegram.org/js/telegram-widget.js?22`
       script.async = true
-      console.log('Creating new Telegram widget')
-      
       script.setAttribute(
         'data-telegram-login',
         import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'DashBoardMetricksBot'
       )
-      script.setAttribute('data-size', 'medium')
+      
+      // Адаптивный размер виджета в зависимости от устройства
+      const isMobile = window.innerWidth <= 768
+      const widgetSize = isMobile ? 'medium' : 'large'
+      
+      script.setAttribute('data-size', widgetSize)
       script.setAttribute('data-radius', '12')
       script.setAttribute('data-request-access', 'write')
-      script.setAttribute('data-userpic', 'false')
-      script.setAttribute('data-onauth', 'onTelegramAuth(user)')
-      script.setAttribute('data-auth-url', 'https://dshb.lemifar.ru/bots')
-
-      // Определяем глобальную функцию авторизации
-      window.onTelegramAuth = async (telegramUser) => {
-        console.log('Telegram auth triggered:', telegramUser)
-        if (!isComponentMounted) return
-
-        try {
-          const result = await login({
-            telegram_id: telegramUser.id,
-            first_name: telegramUser.first_name,
-            last_name: telegramUser.last_name || null,
-            username: telegramUser.username || null,
-            photo_url: telegramUser.photo_url || null,
-            auth_date: telegramUser.auth_date,
-            hash: telegramUser.hash
-          })
-
-          if (result?.success) {
-            navigate('/bots')
-          } else {
-            setError(result?.error || 'Ошибка авторизации')
-          }
-        } catch (err) {
-          console.error('Auth error:', err)
-          setError('Не удалось войти через Telegram. Попробуйте снова.')
-        }
+      
+      // Определяем URL для редиректа в зависимости от окружения
+      let authUrl
+      if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
+        authUrl = `${window.location.protocol}//${window.location.hostname}/bots`
+      } else {
+        authUrl = `${window.location.origin}/bots`
+      }
+      
+      // Используем ТОЛЬКО redirect подход
+      script.setAttribute('data-auth-url', authUrl)
+      
+      // Проверяем, что URL правильный
+      if (!authUrl || !authUrl.includes('/bots')) {
+        console.error('Invalid auth URL configured:', authUrl)
+        setError('Ошибка настройки виджета: неверный URL редиректа')
       }
       
       script.onerror = (e) => {
         console.error('Telegram widget load error:', e)
         if (isComponentMounted) {
           setError('Не удалось загрузить Telegram виджет. Проверьте подключение и CSP.')
+          loadingRef.current = false
           setLoading(false)
         }
       }
 
       script.onload = () => {
-        console.log('Telegram widget script loaded')
+        let checkCount = 0
+        let iframeFound = false
         
-        // Проверяем инициализацию виджета и появление iframe
+        // Проверяем появление iframe виджета
         checkWidgetInterval = setInterval(() => {
+          checkCount++
           const container = document.getElementById('telegram-login-container')
-          const iframe = container?.querySelector('iframe')
-          const isWidgetReady = window.Telegram && window.Telegram.Login && window.Telegram.Login.auth
           
-          console.log('Checking widget:', { 
-            hasIframe: !!iframe, 
-            isWidgetReady,
-            containerContent: container?.innerHTML 
-          })
+          if (!container) return
           
-          if (iframe && isWidgetReady) {
-            console.log('Telegram widget fully initialized with iframe')
-            if (isComponentMounted) {
-              clearInterval(checkWidgetInterval)
-              setLoading(false)
-              
-              // Дополнительная проверка работоспособности виджета
-              if (typeof window.onTelegramAuth !== 'function') {
-                console.warn('Reinitializing onTelegramAuth handler')
-                window.onTelegramAuth = async (telegramUser) => {
-                  console.log('Telegram auth triggered:', telegramUser)
-                  if (!isComponentMounted) return
-                  
-                  try {
-                    const result = await login({
-                      telegram_id: telegramUser.id,
-                      first_name: telegramUser.first_name,
-                      last_name: telegramUser.last_name || null,
-                      username: telegramUser.username || null,
-                      photo_url: telegramUser.photo_url || null,
-                      auth_date: telegramUser.auth_date,
-                      hash: telegramUser.hash
-                    })
-
-                    if (result?.success) {
-                      navigate('/bots')
-                    } else {
-                      setError(result?.error || 'Ошибка авторизации')
-                    }
-                  } catch (err) {
-                    console.error('Auth error:', err)
-                    setError('Не удалось войти через Telegram. Попробуйте снова.')
-                  }
-                }
-              }
-            }
-          }
-        }, 100)
-
-        // Увеличиваем таймаут до 10 секунд
-        initTimeout = setTimeout(() => {
-          if (checkWidgetInterval) clearInterval(checkWidgetInterval)
-          if (isComponentMounted && loading) {
-            const container = document.getElementById('telegram-login-container')
-            const iframe = container?.querySelector('iframe')
-            const isWidgetReady = window.Telegram && window.Telegram.Login && window.Telegram.Login.auth
+          // Ищем iframe
+          const iframe = container.querySelector('iframe') || 
+                        container.querySelector('iframe[src*="oauth.telegram.org"]') ||
+                        document.querySelector(`iframe[id*="telegram-login"]`)
+          
+          if (iframe && !iframeFound) {
+            iframeFound = true
             
-            console.error('Widget initialization timeout:', {
-              hasIframe: !!iframe,
-              isWidgetReady,
-              containerContent: container?.innerHTML
+            // Принудительно убираем все обводки у iframe
+            const removeStyles = () => {
+              iframe.style.border = 'none'
+              iframe.style.outline = 'none'
+              iframe.style.boxShadow = 'none'
+              iframe.style.webkitBoxShadow = 'none'
+              iframe.style.mozBoxShadow = 'none'
+              iframe.style.borderRadius = '0'
+            }
+            
+            removeStyles()
+            
+            // Следим за изменениями стилей и убираем их
+            const observer = new MutationObserver(() => {
+              removeStyles()
             })
             
-            setError('Не удалось инициализировать Telegram виджет. Попробуйте перезагрузить страницу.')
-            setLoading(false)
+            observer.observe(iframe, {
+              attributes: true,
+              attributeFilter: ['style', 'class']
+            })
+            
+            // Убираем обводку через небольшие интервалы (на случай если стили применяются позже)
+            const styleInterval = setInterval(() => {
+              if (iframe.parentNode) {
+                removeStyles()
+              } else {
+                clearInterval(styleInterval)
+                observer.disconnect()
+              }
+            }, 100)
+            
+            // Останавливаем через 5 секунд
+            setTimeout(() => {
+              clearInterval(styleInterval)
+              observer.disconnect()
+            }, 5000)
+            
+            if (isComponentMounted && loadingRef.current) {
+              clearInterval(checkWidgetInterval)
+              loadingRef.current = false
+              setLoading(false)
+            }
+          }
+        }, 50)
+
+        // Таймаут на инициализацию - 10 секунд
+        initTimeout = setTimeout(() => {
+          if (checkWidgetInterval) clearInterval(checkWidgetInterval)
+          
+          if (isComponentMounted && loadingRef.current) {
+            const container = document.getElementById('telegram-login-container')
+            const iframe = container?.querySelector('iframe')
+            
+            if (iframe) {
+              loadingRef.current = false
+              setLoading(false)
+            } else {
+              setError('Не удалось загрузить Telegram виджет. Проверьте настройки домена в BotFather.')
+              loadingRef.current = false
+              setLoading(false)
+            }
           }
         }, 10000)
       }
@@ -159,20 +177,63 @@ const LoginPage = () => {
       container.appendChild(script)
     }
 
+    // Обработчик изменения размера окна для адаптивности
+    const handleResize = () => {
+      if (resizeTimeout) clearTimeout(resizeTimeout)
+      
+      resizeTimeout = setTimeout(() => {
+        const currentIsMobile = window.innerWidth <= 768
+        const container = document.getElementById('telegram-login-container')
+        const iframe = container?.querySelector('iframe')
+        
+        if (iframe) {
+          // Получаем текущий размер из src iframe
+          const currentSize = iframe.src.includes('size=large') ? 'large' : 'medium'
+          const newSize = currentIsMobile ? 'medium' : 'large'
+          
+          // Пересоздаем виджет только если размер изменился
+          if (currentSize !== newSize) {
+            widgetInitializedRef.current = false
+            const script = document.getElementById(TELEGRAM_SCRIPT_ID)
+            if (script) script.remove()
+            if (container) container.innerHTML = ''
+            
+            // Пересоздаем виджет с новым размером
+            setTimeout(() => {
+              if (isComponentMounted) {
+                initTelegramWidget()
+                widgetInitializedRef.current = true
+              }
+            }, 100)
+          }
+        }
+      }, 300) // Debounce 300ms
+    }
+
     // Инициализируем виджет
     initTelegramWidget()
+    widgetInitializedRef.current = true
+    
+    // Добавляем обработчик resize
+    window.addEventListener('resize', handleResize)
 
     // Cleanup функция
     return () => {
       isComponentMounted = false
       if (checkWidgetInterval) clearInterval(checkWidgetInterval)
       if (initTimeout) clearTimeout(initTimeout)
+      if (resizeTimeout) clearTimeout(resizeTimeout)
       
-      // Удаляем только скрипт, но не чистим контейнер
-      const script = document.getElementById(TELEGRAM_SCRIPT_ID)
-      if (script) script.remove()
+      // Убираем обработчик resize
+      window.removeEventListener('resize', handleResize)
+      
+      // НЕ удаляем скрипт при cleanup, чтобы виджет не пересоздавался
+      // Виджет будет удален только при полном размонтировании компонента
+      
+      // Сбрасываем флаг инициализации только при размонтировании
+      widgetInitializedRef.current = false
     }
-  }, [loading, login, navigate])
+  }, []) // Пустой массив - виджет создается только один раз при монтировании
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
@@ -195,8 +256,11 @@ const LoginPage = () => {
           )}
 
           <div className="bg-gradient-to-r from-emerald-400/10 to-blue-400/10 rounded-xl p-8 mb-6">
-            <div id="telegram-login-container" className="flex justify-center min-h-[46px] items-center">
-              {loading && <LoadingSpinner text="Авторизация..." />}
+            <div 
+              id="telegram-login-container" 
+              className="flex justify-center min-h-[46px] sm:min-h-[52px] items-center w-full transition-all duration-300"
+              style={{ border: 'none', outline: 'none', boxShadow: 'none' }}
+            >
             </div>
           </div>
 
