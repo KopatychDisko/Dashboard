@@ -103,6 +103,17 @@ const DashboardPage = () => {
       })
     }
     
+    // Данные роста пользователей
+    if (analytics.user_growth && analytics.user_growth.length > 0) {
+      rows.push('')
+      rows.push('Рост пользователей по дням')
+      rows.push('Дата,Всего пользователей,Новых пользователей,Активных пользователей')
+      analytics.user_growth.forEach(day => {
+        const date = new Date(day.date).toLocaleDateString('ru-RU')
+        rows.push(`${date},${day.total_users || 0},${day.new_users || 0},${day.active_users || 0}`)
+      })
+    }
+    
     // Метаданные
     rows.push('')
     rows.push('Метаданные')
