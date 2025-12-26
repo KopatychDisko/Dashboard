@@ -1,4 +1,6 @@
 import React from 'react'
+
+// ОПТИМИЗАЦИЯ: Мемоизация компонента для предотвращения лишних ре-рендеров
 import { 
   DollarSign, 
   Users, 
@@ -10,7 +12,48 @@ import {
   ArrowDown
 } from 'lucide-react'
 
-const MetricsGrid = ({ metrics }) => {
+const MetricCard = ({ metric, delay = 0 }) => {
+  const IconComponent = metric.icon
+
+  return (
+    <div
+      className="glass-card relative p-6 hover:scale-105 transition-all duration-300 fade-in"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${metric.iconBg} flex items-center justify-center`}>
+          <IconComponent size={24} className="text-white" />
+        </div>
+        
+        <div className={`flex items-center gap-1 text-sm ${
+          metric.changeType === 'positive' ? 'text-emerald-400' : 'text-red-400'
+        }`}>
+          {metric.changeType === 'positive' ? (
+            <ArrowUp size={16} />
+          ) : (
+            <ArrowDown size={16} />
+          )}
+          <span>{metric.change}</span>
+        </div>
+      </div>
+      
+      <div className="mb-2">
+        <p className="text-white/60 text-sm uppercase tracking-wide mb-1">
+          {metric.title}
+        </p>
+        <p className="text-2xl font-bold text-white">
+          {metric.value}
+        </p>
+      </div>
+      
+      <p className="text-white/50 text-sm">
+        с прошлого периода
+      </p>
+    </div>
+  )
+}
+
+const MetricsGrid = React.memo(({ metrics }) => {
   const metricCards = [
     {
       title: 'Общая выручка',
@@ -69,47 +112,8 @@ const MetricsGrid = ({ metrics }) => {
       ))}
     </div>
   )
-}
+})
 
-const MetricCard = ({ metric, delay = 0 }) => {
-  const IconComponent = metric.icon
-
-  return (
-    <div
-      className="glass-card relative p-6 hover:scale-105 transition-all duration-300 fade-in"
-      style={{ animationDelay: `${delay}ms` }}
-    >
-      <div className="flex items-start justify-between mb-4">
-        <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${metric.iconBg} flex items-center justify-center`}>
-          <IconComponent size={24} className="text-white" />
-        </div>
-        
-        <div className={`flex items-center gap-1 text-sm ${
-          metric.changeType === 'positive' ? 'text-emerald-400' : 'text-red-400'
-        }`}>
-          {metric.changeType === 'positive' ? (
-            <ArrowUp size={16} />
-          ) : (
-            <ArrowDown size={16} />
-          )}
-          <span>{metric.change}</span>
-        </div>
-      </div>
-      
-      <div className="mb-2">
-        <p className="text-white/60 text-sm uppercase tracking-wide mb-1">
-          {metric.title}
-        </p>
-        <p className="text-2xl font-bold text-white">
-          {metric.value}
-        </p>
-      </div>
-      
-      <p className="text-white/50 text-sm">
-        с прошлого периода
-      </p>
-    </div>
-  )
-}
+MetricsGrid.displayName = 'MetricsGrid'
 
 export default MetricsGrid

@@ -122,50 +122,50 @@ class SupabaseClient:
             return False
     
     async def get_dashboard_metrics(self, bot_id: str, days: int = 7) -> Dict[str, Any]:
-        """Получает метрики для дашборда"""
+        """Получает метрики для дашборда (оптимизированная версия)"""
         try:
             cutoff_date = datetime.now() - timedelta(days=days)
+            today = datetime.now(timezone.utc).date()
             
-            # Получаем всех реальных пользователей бота (исключая тестовых)
-            # Используем единый фильтр для консистентности
-            real_users_query = self.client.table('sales_users').select('telegram_id').eq('bot_id', bot_id).not_.like('first_name', 'Test%')
+            # ОПТИМИЗАЦИЯ: Один запрос для получения всех пользователей с created_at
+            # Затем считаем новые пользователи в памяти (быстрее чем второй запрос к БД)
+            real_users_query = self.client.table('sales_users').select(
+                'telegram_id', 'created_at'
+            ).eq('bot_id', bot_id).not_.like('first_name', 'Test%')
             real_users_response = real_users_query.execute()
-            real_user_ids = [u['telegram_id'] for u in (real_users_response.data or [])]
+            all_users = real_users_response.data or []
+            real_user_ids = [u['telegram_id'] for u in all_users]
             total_users = len(real_user_ids)
             
-            # Получаем новых пользователей за период (исключая тестовых)
-            new_users_query = self.client.table('sales_users').select('telegram_id').eq(
-                'bot_id', bot_id
-            ).not_.like('first_name', 'Test%').gte('created_at', cutoff_date.isoformat())
-            new_users_response = new_users_query.execute()
-            new_users = len(new_users_response.data) if new_users_response.data else 0
+            # Считаем новых пользователей из уже полученных данных (оптимизация)
+            new_users = 0
+            if all_users:
+                cutoff_datetime = cutoff_date.replace(tzinfo=timezone.utc)
+                for user in all_users:
+                    if user.get('created_at'):
+                        try:
+                            user_date = datetime.fromisoformat(user['created_at'].replace('Z', '+00:00'))
+                            if user_date >= cutoff_datetime:
+                                new_users += 1
+                        except (ValueError, AttributeError):
+                            continue
             
-            # Получаем сессии за период только для реальных пользователей
+            # ОПТИМИЗАЦИЯ: Один запрос для сессий (вместо двух)
+            # Получаем все сессии за период с нужными полями
             sessions_query = self.client.table('sales_chat_sessions').select(
                 'id', 'user_id', 'current_stage', 'created_at'
             ).eq('bot_id', bot_id).gte('created_at', cutoff_date.isoformat())
             if real_user_ids:  # Добавляем фильтр по реальным пользователям
                 sessions_query = sessions_query.in_('user_id', real_user_ids)
             sessions_response = sessions_query.execute()
-            sessions = sessions_response.data if sessions_response.data else []
+            sessions = sessions_response.data or []
+            session_ids = [s['id'] for s in sessions]
             
             # Активные пользователи сегодня
-            # Логика: ищем сессии где есть сообщения от пользователя (role='user') сегодня
-            today = datetime.now(timezone.utc).date()
             logger.info(f"🔍 Подсчет активных пользователей за сегодня ({today})")
-            
-            # Получаем все session_id для бота только для реальных пользователей
-            sessions_query = self.client.table('sales_chat_sessions').select('id').eq('bot_id', bot_id)
-            if real_user_ids:
-                sessions_query = sessions_query.in_('user_id', real_user_ids)
-            sessions_response = sessions_query.execute()
-            session_ids = [s['id'] for s in (sessions_response.data or [])]
-            
-            logger.info(f"📊 Найдено {len(session_ids)} сессий для бота {bot_id}")
-            
-            # Ищем сообщения от пользователей (role='user') сегодня в этих сессиях
             active_today = 0
             if session_ids:
+                # Ищем сообщения от пользователей (role='user') сегодня в этих сессиях
                 messages_query = self.client.table('sales_messages').select(
                     'session_id'
                 ).in_('session_id', session_ids).eq('role', 'user').gte(

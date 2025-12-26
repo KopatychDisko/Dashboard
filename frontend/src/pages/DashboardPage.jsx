@@ -1,16 +1,18 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { analyticsAPI } from '../utils/api'
 import LoadingSpinner from '../components/LoadingSpinner'
 import LoadingOverlay from '../components/LoadingOverlay'
-import MetricsGrid from '../components/dashboard/MetricsGrid'
-import RevenueChart from '../components/dashboard/RevenueChart'
-import FunnelChart from '../components/dashboard/FunnelChart'
-import UserGrowthChart from '../components/dashboard/UserGrowthChart'
-import { ArrowLeft, RefreshCw, Calendar, Download, Users, Activity } from 'lucide-react'
+import { ArrowLeft, Calendar, Download, Users, Activity } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
+
+// ОПТИМИЗАЦИЯ: Lazy loading для тяжелых компонентов графиков
+const MetricsGrid = React.lazy(() => import('../components/dashboard/MetricsGrid'))
+const RevenueChart = React.lazy(() => import('../components/dashboard/RevenueChart'))
+const FunnelChart = React.lazy(() => import('../components/dashboard/FunnelChart'))
+const UserGrowthChart = React.lazy(() => import('../components/dashboard/UserGrowthChart'))
 
 // Функция для форматирования времени относительно МСК
 const getTimeAgo = (timestamp) => {
@@ -33,16 +35,18 @@ const DashboardPage = () => {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [refreshing, setRefreshing] = useState(false)
   const [period, setPeriod] = useState(7)
+  const [lastUpdate, setLastUpdate] = useState(null)
 
-  useEffect(() => {
-    loadAnalytics()
-  }, [botId, period])
+  // Ref для хранения интервала polling
+  const pollingIntervalRef = useRef(null)
+  const REFRESH_INTERVAL = 30000 // 30 секунд
 
-  const loadAnalytics = async () => {
+  const loadAnalytics = useCallback(async (silent = false) => {
     try {
-      setLoading(true)
+      if (!silent) {
+        setLoading(true)
+      }
       setError('')
       
       const response = await analyticsAPI.getDashboardAnalytics(botId, period)
@@ -53,19 +57,71 @@ const DashboardPage = () => {
       if (eventsResponse.data.success) {
         setEvents(eventsResponse.data.events || [])
       }
+      
+      // Обновляем время последнего обновления
+      setLastUpdate(new Date())
     } catch (err) {
-      console.error('Ошибка загрузки аналитики:', err)
-      setError('Не удалось загрузить аналитику')
+      // Используем обработанную ошибку из interceptor
+      const errorMessage = err.processedError?.message || err.response?.data?.detail || 'Не удалось загрузить аналитику'
+      
+      if (!silent) {
+        setError(errorMessage)
+      }
+      
+      // Логируем только в development
+      if (import.meta.env.DEV) {
+        console.error('Ошибка загрузки аналитики:', err)
+      }
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
-  }
+  }, [botId, period])
 
-  const handleRefresh = async () => {
-    setRefreshing(true)
-    await loadAnalytics()
-    setRefreshing(false)
-  }
+  useEffect(() => {
+    // Первоначальная загрузка
+    loadAnalytics(false)
+
+    // Очистка предыдущего интервала если есть
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
+    }
+
+    // Запускаем polling интервал
+    pollingIntervalRef.current = setInterval(() => {
+      loadAnalytics(true) // Тихая загрузка без loading overlay
+    }, REFRESH_INTERVAL)
+
+    // Останавливаем polling когда вкладка неактивна (Page Visibility API)
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Останавливаем polling при неактивной вкладке
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current)
+          pollingIntervalRef.current = null
+        }
+      } else {
+        // Перезапускаем polling при возврате на вкладку
+        if (!pollingIntervalRef.current) {
+          pollingIntervalRef.current = setInterval(() => {
+            loadAnalytics(true)
+          }, REFRESH_INTERVAL)
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // Cleanup при размонтировании или изменении зависимостей
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [botId, period, loadAnalytics])
 
   const convertToCSV = (data) => {
     if (!data || !analytics) return ''
@@ -145,7 +201,13 @@ const DashboardPage = () => {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
     } catch (err) {
-      console.error('Ошибка экспорта:', err)
+      // Используем обработанную ошибку
+      const errorMessage = err.processedError?.message || 'Не удалось экспортировать данные'
+      setError(errorMessage)
+      
+      if (import.meta.env.DEV) {
+        console.error('Ошибка экспорта:', err)
+      }
     }
   }
 
@@ -203,7 +265,7 @@ const DashboardPage = () => {
                 📊 Дашбоард бота
               </h1>
               <p className="text-sm lg:text-base text-white/70">
-                {botId} • Последнее обновление: {new Date().toLocaleTimeString('ru-RU')}
+                {botId}
               </p>
             </div>
           </div>
@@ -232,15 +294,6 @@ const DashboardPage = () => {
             >
               <Download size={20} />
               Экспорт
-            </button>
-            
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-400 to-blue-400 rounded-xl font-semibold hover:from-emerald-500 hover:to-blue-500 transition-all disabled:opacity-50 text-sm w-full lg:w-auto"
-            >
-              <RefreshCw size={20} className={refreshing ? 'animate-spin' : ''} />
-              Обновить
             </button>
           </div>
         </div>
@@ -306,7 +359,9 @@ const DashboardPage = () => {
             
             {/* User Growth Chart */}
             <div className="mb-6 lg:mb-8">
-              <UserGrowthChart data={analytics.user_growth || []} period={period} />
+              <Suspense fallback={<div className="glass-card p-6"><LoadingSpinner /></div>}>
+                <UserGrowthChart data={analytics.user_growth || []} period={period} />
+              </Suspense>
             </div>
             
             {/* Activity Feed */}

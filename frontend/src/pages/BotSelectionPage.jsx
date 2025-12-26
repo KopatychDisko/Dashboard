@@ -57,8 +57,12 @@ const BotSelectionPage = () => {
             setError('Не удалось загрузить список ботов')
           }
         } catch (err) {
-          console.error('Ошибка загрузки ботов:', err)
-          setError('Ошибка загрузки ботов')
+          const errorMessage = err.processedError?.message || err.response?.data?.detail || 'Ошибка загрузки ботов'
+          setError(errorMessage)
+          
+          if (import.meta.env.DEV) {
+            console.error('Ошибка загрузки ботов:', err)
+          }
         }
       } else {
         setError(result?.error || 'Ошибка авторизации')
@@ -66,10 +70,14 @@ const BotSelectionPage = () => {
         setTimeout(() => navigate('/login', { replace: true }), 3000)
       }
     } catch (err) {
-      console.error('Ошибка авторизации:', err)
-      setError('Ошибка авторизации. Попробуйте снова.')
+      const errorMessage = err.processedError?.message || err.response?.data?.detail || 'Ошибка авторизации. Попробуйте снова.'
+      setError(errorMessage)
       setLoading(false)
       setTimeout(() => navigate('/login', { replace: true }), 3000)
+      
+      if (import.meta.env.DEV) {
+        console.error('Ошибка авторизации:', err)
+      }
     }
   }
 
@@ -90,8 +98,12 @@ const BotSelectionPage = () => {
         setError('Не удалось загрузить список ботов')
       }
     } catch (err) {
-      console.error('Ошибка загрузки ботов:', err)
-      setError('Ошибка загрузки ботов')
+      const errorMessage = err.processedError?.message || err.response?.data?.detail || 'Ошибка загрузки ботов'
+      setError(errorMessage)
+      
+      if (import.meta.env.DEV) {
+        console.error('Ошибка загрузки ботов:', err)
+      }
     } finally {
       setLoading(false)
     }

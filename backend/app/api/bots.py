@@ -1,8 +1,9 @@
 import logging
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Dict, Any
 
 from app.database.supabase_client import get_supabase_client
+from app.core.dependencies import verify_bot_access
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,10 @@ async def get_user_bots(telegram_id: int):
         )
 
 @router.get("/{bot_id}/info")
-async def get_bot_info(bot_id: str):
+async def get_bot_info(
+    bot_id: str,
+    current_user_id: int = Depends(verify_bot_access)
+):
     """
     Получение детальной информации о боте
     """
@@ -112,7 +116,8 @@ async def get_bot_info(bot_id: str):
 async def get_bot_users(
     bot_id: str,
     limit: int = Query(100, ge=1, le=1000),
-    offset: int = Query(0, ge=0)
+    offset: int = Query(0, ge=0),
+    current_user_id: int = Depends(verify_bot_access)
 ):
     """
     Получение списка пользователей бота

@@ -1,9 +1,10 @@
 import logging
-from fastapi import APIRouter, HTTPException, Query, Path
+from fastapi import APIRouter, HTTPException, Query, Path, Depends
 from typing import Dict, Any, List
 from datetime import datetime
 
 from app.database.supabase_client import get_supabase_client
+from app.core.dependencies import verify_bot_access
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,8 @@ router = APIRouter()
 @router.get("/{bot_id}/dashboard", response_model=Dict[str, Any])
 async def get_dashboard_analytics(
     bot_id: str = Path(..., description="ID бота"),
-    days: int = Query(7, ge=1, le=365, description="Количество дней для анализа")
+    days: int = Query(7, ge=1, le=365, description="Количество дней для анализа"),
+    current_user_id: int = Depends(verify_bot_access)
 ) -> Dict[str, Any]:
     """
     Получение полной аналитики для дашборда
@@ -63,7 +65,8 @@ async def get_dashboard_analytics(
 @router.get("/{bot_id}/metrics", response_model=Dict[str, Any])
 async def get_bot_metrics(
     bot_id: str = Path(..., description="ID бота"),
-    days: int = Query(7, ge=1, le=365, description="Количество дней для анализа")
+    days: int = Query(7, ge=1, le=365, description="Количество дней для анализа"),
+    current_user_id: int = Depends(verify_bot_access)
 ) -> Dict[str, Any]:
     """
     Получение основных метрик бота
@@ -98,7 +101,8 @@ async def get_bot_metrics(
 @router.get("/{bot_id}/funnel", response_model=Dict[str, Any])
 async def get_funnel_analytics(
     bot_id: str = Path(..., description="ID бота"),
-    days: int = Query(7, ge=1, le=365, description="Количество дней для анализа")
+    days: int = Query(7, ge=1, le=365, description="Количество дней для анализа"),
+    current_user_id: int = Depends(verify_bot_access)
 ) -> Dict[str, Any]:
     """
     Получение аналитики воронки продаж
@@ -135,7 +139,8 @@ async def get_funnel_analytics(
 @router.get("/{bot_id}/detailed", response_model=Dict[str, Any])
 async def get_detailed_analytics(
     bot_id: str = Path(..., description="ID бота"),
-    days: int = Query(30, ge=1, le=365, description="Количество дней для анализа")
+    days: int = Query(30, ge=1, le=365, description="Количество дней для анализа"),
+    current_user_id: int = Depends(verify_bot_access)
 ) -> Dict[str, Any]:
     """
     Получение детальной аналитики
@@ -183,7 +188,8 @@ async def get_detailed_analytics(
 @router.get("/{bot_id}/recent-events", response_model=Dict[str, Any])
 async def get_recent_events(
     bot_id: str = Path(..., description="ID бота"),
-    limit: int = Query(10, ge=1, le=50, description="Количество событий")
+    limit: int = Query(10, ge=1, le=50, description="Количество событий"),
+    current_user_id: int = Depends(verify_bot_access)
 ) -> Dict[str, Any]:
     """
     Получение последних событий бота
@@ -244,7 +250,8 @@ async def get_recent_events(
 async def export_analytics(
     bot_id: str = Path(..., description="ID бота"),
     days: int = Query(30, ge=1, le=365, description="Количество дней для экспорта"),
-    export_format: str = Query("json", pattern="^(json|csv)$", description="Формат экспорта", alias="format")
+    export_format: str = Query("json", pattern="^(json|csv)$", description="Формат экспорта", alias="format"),
+    current_user_id: int = Depends(verify_bot_access)
 ) -> Dict[str, Any]:
     """
     Экспорт аналитики в различных форматах

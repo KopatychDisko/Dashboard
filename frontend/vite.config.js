@@ -23,11 +23,27 @@ export default defineConfig({
     rollupOptions: {
       treeshake: true,
       output: {
-        manualChunks: {
-          'react-core': ['react', 'react-dom'],
-          'react-router': ['react-router-dom'],
-          'charts': ['recharts'],
-          'utils': ['date-fns', 'axios', 'clsx']
+        manualChunks: (id) => {
+          // ОПТИМИЗАЦИЯ: Более детальное разделение чанков для лучшего кэширования
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'vendor-react'
+            }
+            if (id.includes('react-router')) {
+              return 'vendor-router'
+            }
+            if (id.includes('recharts')) {
+              return 'vendor-charts'
+            }
+            if (id.includes('date-fns') || id.includes('lucide-react')) {
+              return 'vendor-utils'
+            }
+            if (id.includes('axios')) {
+              return 'vendor-http'
+            }
+            // Остальные node_modules
+            return 'vendor-other'
+          }
         },
         inlineDynamicImports: false,
         compact: true,

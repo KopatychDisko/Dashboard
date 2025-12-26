@@ -37,7 +37,9 @@ const LoginPage = () => {
 
       const container = document.getElementById('telegram-login-container')
       if (!container) {
-        console.warn('Telegram container not found: #telegram-login-container')
+        if (import.meta.env.DEV) {
+          console.warn('Telegram container not found: #telegram-login-container')
+        }
         return
       }
 
@@ -76,16 +78,21 @@ const LoginPage = () => {
       
       // Проверяем, что URL правильный
       if (!authUrl || !authUrl.includes('/bots')) {
-        console.error('Invalid auth URL configured:', authUrl)
         setError('Ошибка настройки виджета: неверный URL редиректа')
+        if (import.meta.env.DEV) {
+          console.error('Invalid auth URL configured:', authUrl)
+        }
       }
       
       script.onerror = (e) => {
-        console.error('Telegram widget load error:', e)
         if (isComponentMounted) {
           setError('Не удалось загрузить Telegram виджет. Проверьте подключение и CSP.')
           loadingRef.current = false
           setLoading(false)
+        }
+        
+        if (import.meta.env.DEV) {
+          console.error('Telegram widget load error:', e)
         }
       }
 
