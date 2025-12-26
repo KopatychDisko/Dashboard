@@ -32,7 +32,10 @@ export function AuthProvider({ children }) {
         clearAuth()
       }
     } catch (error) {
-      console.error('Ошибка проверки авторизации:', error)
+      // Логируем только в development
+      if (import.meta.env.DEV) {
+        console.error('Ошибка проверки авторизации:', error)
+      }
       clearAuth()
     } finally {
       setLoading(false)
@@ -62,10 +65,15 @@ export function AuthProvider({ children }) {
       
       return { success: false, error: 'Ошибка авторизации' }
     } catch (error) {
-      console.error('Ошибка входа:', error)
+      const errorMessage = error.processedError?.message || error.response?.data?.detail || 'Ошибка авторизации'
+      
+      if (import.meta.env.DEV) {
+        console.error('Ошибка входа:', error)
+      }
+      
       return { 
         success: false, 
-        error: error.response?.data?.detail || 'Ошибка авторизации' 
+        error: errorMessage
       }
     } finally {
       setLoading(false)
@@ -77,7 +85,9 @@ export function AuthProvider({ children }) {
       // Вызываем logout на сервере для очистки куков
       await apiClient.post('/auth/logout')
     } catch (error) {
-      console.error('Ошибка выхода:', error)
+      if (import.meta.env.DEV) {
+        console.error('Ошибка выхода:', error)
+      }
     } finally {
       clearAuth()
     }

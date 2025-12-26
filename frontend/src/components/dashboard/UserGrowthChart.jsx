@@ -1,48 +1,58 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 
-const UserGrowthChart = ({ data = [], period = 7 }) => {
-  // Генерируем данные для демонстрации если нет реальных данных
-  const generateMockData = () => {
-    const mockData = []
-    const now = new Date()
-    
-    for (let i = period - 1; i >= 0; i--) {
-      const date = new Date(now)
-      date.setDate(date.getDate() - i)
-      
-      // Имитируем рост пользователей с небольшими колебаниями
-      const baseUsers = 100 + (period - 1 - i) * 15
-      const dailyGrowth = Math.floor(Math.random() * 25) + 5
-      const totalUsers = baseUsers + dailyGrowth
-      
-      mockData.push({
-        date: date.toISOString(),
-        total_users: totalUsers,
-        new_users: dailyGrowth,
-        active_users: Math.floor(totalUsers * 0.3) + Math.floor(Math.random() * 20)
-      })
+const UserGrowthChart = React.memo(({ data = [], period = 7 }) => {
+  // ОПТИМИЗАЦИЯ: Мемоизация преобразования данных - пересчитываем только при изменении data или period
+  const chartData = useMemo(() => {
+    if (data.length > 0) {
+      return data.map(item => ({
+        date: format(new Date(item.date), 'dd MMM', { locale: ru }),
+        total_users: item.total_users || 0,
+        new_users: item.new_users || 0,
+        active_users: item.active_users || 0,
+        fullDate: item.date
+      }))
+    } else {
+      // Генерируем mock данные внутри useMemo
+      const mockData = []
+      const now = new Date()
+      for (let i = period - 1; i >= 0; i--) {
+        const date = new Date(now)
+        date.setDate(date.getDate() - i)
+        const baseUsers = 100 + (period - 1 - i) * 15
+        const dailyGrowth = Math.floor(Math.random() * 25) + 5
+        const totalUsers = baseUsers + dailyGrowth
+        mockData.push({
+          date: date.toISOString(),
+          total_users: totalUsers,
+          new_users: dailyGrowth,
+          active_users: Math.floor(totalUsers * 0.3) + Math.floor(Math.random() * 20)
+        })
+      }
+      return mockData.map(item => ({
+        date: format(new Date(item.date), 'dd MMM', { locale: ru }),
+        total_users: item.total_users,
+        new_users: item.new_users,
+        active_users: item.active_users,
+        fullDate: item.date
+      }))
     }
-    
-    return mockData
-  }
+  }, [data, period])
+  
+  // ОПТИМИЗАЦИЯ: Мемоизация вычислений для статистики
+  const stats = useMemo(() => {
+    const totalGrowth = chartData.length > 1 
+      ? chartData[chartData.length - 1].total_users - chartData[0].total_users 
+      : 0
 
-  // Преобразуем данные для графика
-  const chartData = data.length > 0 ? data.map(item => ({
-    date: format(new Date(item.date), 'dd MMM', { locale: ru }),
-    total_users: item.total_users || 0,
-    new_users: item.new_users || 0,
-    active_users: item.active_users || 0,
-    fullDate: item.date
-  })) : generateMockData().map(item => ({
-    date: format(new Date(item.date), 'dd MMM', { locale: ru }),
-    total_users: item.total_users,
-    new_users: item.new_users,
-    active_users: item.active_users,
-    fullDate: item.date
-  }))
+    const growthPercentage = chartData.length > 1 && chartData[0].total_users > 0
+      ? ((totalGrowth / chartData[0].total_users) * 100).toFixed(1)
+      : 0
+    
+    return { totalGrowth, growthPercentage }
+  }, [chartData, period])
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -65,14 +75,6 @@ const UserGrowthChart = ({ data = [], period = 7 }) => {
     }
     return null
   }
-
-  const totalGrowth = chartData.length > 1 
-    ? chartData[chartData.length - 1].total_users - chartData[0].total_users 
-    : 0
-
-  const growthPercentage = chartData.length > 1 && chartData[0].total_users > 0
-    ? ((totalGrowth / chartData[0].total_users) * 100).toFixed(1)
-    : 0
 
   return (
     <div className="glass-card relative p-6">
@@ -145,26 +147,28 @@ const UserGrowthChart = ({ data = [], period = 7 }) => {
         <div className="text-center p-3 bg-white/5 rounded-lg">
           <p className="text-white/60 mb-1">Общий рост</p>
           <p className="text-emerald-400 font-bold text-lg">
-            +{totalGrowth.toLocaleString('ru-RU')}
+            +{stats.totalGrowth.toLocaleString('ru-RU')}
           </p>
         </div>
         
         <div className="text-center p-3 bg-white/5 rounded-lg">
           <p className="text-white/60 mb-1">Прирост</p>
           <p className="text-emerald-400 font-bold text-lg">
-            {growthPercentage > 0 ? '+' : ''}{growthPercentage}%
+            {stats.growthPercentage > 0 ? '+' : ''}{stats.growthPercentage}%
           </p>
         </div>
         
         <div className="text-center p-3 bg-white/5 rounded-lg">
           <p className="text-white/60 mb-1">Средний прирост/день</p>
           <p className="text-blue-400 font-bold text-lg">
-            +{Math.round(totalGrowth / period).toLocaleString('ru-RU')}
+            +{Math.round(stats.totalGrowth / period).toLocaleString('ru-RU')}
           </p>
         </div>
       </div>
     </div>
   )
-}
+})
+
+UserGrowthChart.displayName = 'UserGrowthChart'
 
 export default UserGrowthChart

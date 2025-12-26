@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { handleApiError } from './errorHandler.js'
 
 // Базовый URL для API
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
@@ -17,12 +18,24 @@ export const apiClient = axios.create({
 apiClient.interceptors.response.use(
   response => response,
   error => {
-    console.error('API Error:', error)
+    // Обрабатываем ошибку через централизованный обработчик
+    const errorInfo = handleApiError(error)
+    
+    // Логируем только в development режиме
+    if (import.meta.env.DEV) {
+      console.error('API Error:', errorInfo, error)
+    }
     
     // Если ошибка авторизации - перенаправляем на логин
-    if (error.response?.status === 401) {
-      window.location.href = '/login'
+    if (errorInfo.statusCode === 401) {
+      // Не редиректим если мы уже на странице логина
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login'
+      }
     }
+    
+    // Добавляем обработанную информацию об ошибке к объекту ошибки
+    error.processedError = errorInfo
     
     return Promise.reject(error)
   }
