@@ -6,6 +6,7 @@ from fastapi import HTTPException, Request, Depends
 from typing import Optional, Callable
 
 from app.database.supabase_client import get_supabase_client
+from app.core.validators import validate_bot_id
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,9 @@ def verify_bot_access_factory(bot_id_param: str = "bot_id") -> Callable:
                 status_code=400,
                 detail=f"Параметр {bot_id_param} обязателен"
             )
+        
+        # Валидируем и санитизируем bot_id
+        bot_id = validate_bot_id(bot_id)
         
         if not current_user_id:
             logger.warning(f"Попытка доступа к боту {bot_id} без авторизации")

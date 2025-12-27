@@ -1,16 +1,20 @@
 import logging
+import asyncio
 from fastapi import APIRouter, HTTPException, Query, Path, Depends
 from typing import Dict, Any, List
 from datetime import datetime
 
 from app.database.supabase_client import get_supabase_client
 from app.core.dependencies import verify_bot_access
+from app.core.cache import cached
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 @router.get("/{bot_id}/dashboard", response_model=Dict[str, Any])
+@cached(ttl=settings.RESPONSE_CACHE_TTL if settings.ENABLE_RESPONSE_CACHE else None, key_params=['bot_id', 'days'])
 async def get_dashboard_analytics(
     bot_id: str = Path(..., description="ID бота"),
     days: int = Query(7, ge=1, le=365, description="Количество дней для анализа"),
@@ -28,15 +32,14 @@ async def get_dashboard_analytics(
         db_client = get_supabase_client(bot_id)
         await db_client.initialize()
         
-        # Получаем основные метрики
-        logger.info(f"📈 Получение метрик...")
-        metrics_data = await db_client.get_dashboard_metrics(bot_id, days)
+        # ОПТИМИЗАЦИЯ: Выполняем независимые запросы параллельно
+        logger.info(f"📈 Параллельная загрузка метрик и воронки...")
+        metrics_data, funnel_data = await asyncio.gather(
+            db_client.get_dashboard_metrics(bot_id, days),
+            db_client.get_funnel_stats(bot_id, days)
+        )
         
-        # Получаем статистику воронки
-        logger.info(f"🎯 Получение воронки продаж...")
-        funnel_data = await db_client.get_funnel_stats(bot_id, days)
-        
-        # Получаем данные роста пользователей
+        # Получаем данные роста пользователей (зависит от метрик)
         logger.info(f"📈 Получение данных роста пользователей...")
         # Вычисляем базовое количество: общее количество минус новые за период
         base_total = max(0, metrics_data.get('total_users', 0) - metrics_data.get('new_users', 0))
@@ -63,6 +66,7 @@ async def get_dashboard_analytics(
         )
 
 @router.get("/{bot_id}/metrics", response_model=Dict[str, Any])
+@cached(ttl=settings.RESPONSE_CACHE_TTL if settings.ENABLE_RESPONSE_CACHE else None, key_params=['bot_id', 'days'])
 async def get_bot_metrics(
     bot_id: str = Path(..., description="ID бота"),
     days: int = Query(7, ge=1, le=365, description="Количество дней для анализа"),
@@ -99,6 +103,7 @@ async def get_bot_metrics(
         )
 
 @router.get("/{bot_id}/funnel", response_model=Dict[str, Any])
+@cached(ttl=settings.RESPONSE_CACHE_TTL if settings.ENABLE_RESPONSE_CACHE else None, key_params=['bot_id', 'days'])
 async def get_funnel_analytics(
     bot_id: str = Path(..., description="ID бота"),
     days: int = Query(7, ge=1, le=365, description="Количество дней для анализа"),
@@ -154,13 +159,12 @@ async def get_detailed_analytics(
         db_client = get_supabase_client(bot_id)
         await db_client.initialize()
         
-        # Получаем основные метрики
-        logger.info(f"📊 Получение метрик...")
-        metrics = await db_client.get_dashboard_metrics(bot_id, days)
-        
-        # Получаем статистику воронки
-        logger.info(f"🎯 Получение воронки...")
-        funnel_stats = await db_client.get_funnel_stats(bot_id, days)
+        # ОПТИМИЗАЦИЯ: Выполняем независимые запросы параллельно
+        logger.info(f"📊 Параллельная загрузка метрик и воронки...")
+        metrics, funnel_stats = await asyncio.gather(
+            db_client.get_dashboard_metrics(bot_id, days),
+            db_client.get_funnel_stats(bot_id, days)
+        )
         
         # Формируем детальный ответ
         detailed_analytics = {

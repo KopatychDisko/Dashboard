@@ -45,15 +45,18 @@ const DashboardPage = () => {
   const loadAnalytics = useCallback(async (silent = false) => {
     try {
       if (!silent) {
-        setLoading(true)
+      setLoading(true)
       }
       setError('')
       
-      const response = await analyticsAPI.getDashboardAnalytics(botId, period)
-      setAnalytics(response.data)
+      // ОПТИМИЗАЦИЯ: Параллельная загрузка аналитики и событий
+      const [analyticsResponse, eventsResponse] = await Promise.all([
+        analyticsAPI.getDashboardAnalytics(botId, period),
+        analyticsAPI.getRecentEvents(botId, 10)
+      ])
       
-      // Загружаем последние события
-      const eventsResponse = await analyticsAPI.getRecentEvents(botId, 10)
+      setAnalytics(analyticsResponse.data)
+      
       if (eventsResponse.data.success) {
         setEvents(eventsResponse.data.events || [])
       }
@@ -70,13 +73,13 @@ const DashboardPage = () => {
       
       // Логируем только в development
       if (import.meta.env.DEV) {
-        console.error('Ошибка загрузки аналитики:', err)
+      console.error('Ошибка загрузки аналитики:', err)
       }
     } finally {
       if (!silent) {
-        setLoading(false)
-      }
+      setLoading(false)
     }
+  }
   }, [botId, period])
 
   useEffect(() => {
@@ -88,10 +91,19 @@ const DashboardPage = () => {
       clearInterval(pollingIntervalRef.current)
     }
 
+    // ОПТИМИЗАЦИЯ: Используем requestIdleCallback для polling (если доступен)
+    const scheduleRefresh = () => {
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => {
+          loadAnalytics(true) // Тихая загрузка без loading overlay
+        }, { timeout: REFRESH_INTERVAL })
+      } else {
+        loadAnalytics(true)
+      }
+    }
+    
     // Запускаем polling интервал
-    pollingIntervalRef.current = setInterval(() => {
-      loadAnalytics(true) // Тихая загрузка без loading overlay
-    }, REFRESH_INTERVAL)
+    pollingIntervalRef.current = setInterval(scheduleRefresh, REFRESH_INTERVAL)
 
     // Останавливаем polling когда вкладка неактивна (Page Visibility API)
     const handleVisibilityChange = () => {
@@ -104,9 +116,16 @@ const DashboardPage = () => {
       } else {
         // Перезапускаем polling при возврате на вкладку
         if (!pollingIntervalRef.current) {
-          pollingIntervalRef.current = setInterval(() => {
-            loadAnalytics(true)
-          }, REFRESH_INTERVAL)
+          const scheduleRefresh = () => {
+            if ('requestIdleCallback' in window) {
+              requestIdleCallback(() => {
+                loadAnalytics(true)
+              }, { timeout: REFRESH_INTERVAL })
+            } else {
+              loadAnalytics(true)
+            }
+          }
+          pollingIntervalRef.current = setInterval(scheduleRefresh, REFRESH_INTERVAL)
         }
       }
     }
@@ -120,7 +139,7 @@ const DashboardPage = () => {
         pollingIntervalRef.current = null
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
+  }
   }, [botId, period, loadAnalytics])
 
   const convertToCSV = (data) => {
@@ -206,7 +225,7 @@ const DashboardPage = () => {
       setError(errorMessage)
       
       if (import.meta.env.DEV) {
-        console.error('Ошибка экспорта:', err)
+      console.error('Ошибка экспорта:', err)
       }
     }
   }
@@ -360,7 +379,7 @@ const DashboardPage = () => {
             {/* User Growth Chart */}
             <div className="mb-6 lg:mb-8">
               <Suspense fallback={<div className="glass-card p-6"><LoadingSpinner /></div>}>
-                <UserGrowthChart data={analytics.user_growth || []} period={period} />
+              <UserGrowthChart data={analytics.user_growth || []} period={period} />
               </Suspense>
             </div>
             

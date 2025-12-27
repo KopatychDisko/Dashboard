@@ -61,7 +61,7 @@ const BotSelectionPage = () => {
           setError(errorMessage)
           
           if (import.meta.env.DEV) {
-            console.error('Ошибка загрузки ботов:', err)
+          console.error('Ошибка загрузки ботов:', err)
           }
         }
       } else {
@@ -102,7 +102,7 @@ const BotSelectionPage = () => {
       setError(errorMessage)
       
       if (import.meta.env.DEV) {
-        console.error('Ошибка загрузки ботов:', err)
+      console.error('Ошибка загрузки ботов:', err)
       }
     } finally {
       setLoading(false)

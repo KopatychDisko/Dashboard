@@ -30,7 +30,7 @@ apiClient.interceptors.response.use(
     if (errorInfo.statusCode === 401) {
       // Не редиректим если мы уже на странице логина
       if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login'
+      window.location.href = '/login'
       }
     }
     
