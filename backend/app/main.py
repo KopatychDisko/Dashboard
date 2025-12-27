@@ -23,6 +23,7 @@ from .middleware.request_size_limit import RequestSizeLimitMiddleware
 from .middleware.request_timeout import RequestTimeoutMiddleware
 from .middleware.etag import ETagMiddleware
 from .middleware.cache_headers import CacheHeadersMiddleware
+from .middleware.rate_limit import RateLimitMiddleware
 from .database.supabase_client import get_supabase_client, clear_connection_pool
 from fastapi import HTTPException
 from fastapi.exceptions import RequestValidationError
@@ -80,6 +81,14 @@ logger.info(f"Request timeout: {settings.REQUEST_TIMEOUT_SECONDS} seconds")
 
 # Request Size Limit Middleware (проверяет размер тела запроса)
 app.add_middleware(RequestSizeLimitMiddleware)
+
+# Rate Limiting Middleware (защита от DDoS и множественных запросов)
+if settings.ENABLE_RATE_LIMIT:
+    app.add_middleware(RateLimitMiddleware)
+    logger.info(
+        f"Rate limiting enabled: {settings.RATE_LIMIT_PER_MINUTE} req/min, "
+        f"{settings.RATE_LIMIT_PER_HOUR} req/hour, max {settings.RATE_LIMIT_MAX_TRACKED_IPS} tracked IPs"
+    )
 
 # Request Logging Middleware (использует Request ID)
 app.add_middleware(RequestLoggingMiddleware)

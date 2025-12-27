@@ -127,6 +127,11 @@ const BotSelectionPage = () => {
     )
   }
 
+  // Если пользователь не загружен, показываем загрузку
+  if (!user) {
+    return <LoadingOverlay />
+  }
+
   return (
     <div className="min-h-screen p-6">
       <div className="max-w-4xl mx-auto">
@@ -137,7 +142,7 @@ const BotSelectionPage = () => {
               Выберите бота
             </h1>
             <p className="text-white/70">
-              Добро пожаловать, {user.first_name}! Выберите бота для просмотра аналитики
+              Добро пожаловать, {user?.first_name || 'Пользователь'}! Выберите бота для просмотра аналитики
             </p>
           </div>
           

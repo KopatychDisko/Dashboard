@@ -52,6 +52,16 @@ class Settings(BaseSettings):
     # RESPONSE_CACHE_TTL: время жизни кеша в секундах (по умолчанию 30)
     RESPONSE_CACHE_TTL: int = 30
     
+    # Rate Limiting
+    # ENABLE_RATE_LIMIT: включить rate limiting (по умолчанию True)
+    ENABLE_RATE_LIMIT: bool = True
+    # RATE_LIMIT_PER_MINUTE: максимальное количество запросов в минуту (по умолчанию 60)
+    RATE_LIMIT_PER_MINUTE: int = 60
+    # RATE_LIMIT_PER_HOUR: максимальное количество запросов в час (по умолчанию 1000)
+    RATE_LIMIT_PER_HOUR: int = 1000
+    # RATE_LIMIT_MAX_TRACKED_IPS: максимальное количество отслеживаемых IP (по умолчанию 10000)
+    RATE_LIMIT_MAX_TRACKED_IPS: int = 10000
+    
     # Logging
     # LOG_LEVEL: уровень логирования (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     # Если не указан, определяется автоматически по ENVIRONMENT
