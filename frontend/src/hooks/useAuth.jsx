@@ -25,7 +25,7 @@ export function AuthProvider({ children }) {
       // Используем новый endpoint /auth/me который читает куки
       const response = await apiClient.get('/auth/me')
       
-      if (response.data.success) {
+      if (response.data.success && response.data.user) {
         setUser(response.data.user)
         setIsAuthenticated(true)
       } else {
