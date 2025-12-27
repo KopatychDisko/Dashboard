@@ -38,7 +38,7 @@ const LoginPage = () => {
       const container = document.getElementById('telegram-login-container')
       if (!container) {
         if (import.meta.env.DEV) {
-          console.warn('Telegram container not found: #telegram-login-container')
+        console.warn('Telegram container not found: #telegram-login-container')
         }
         return
       }

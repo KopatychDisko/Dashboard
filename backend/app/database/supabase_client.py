@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
 from supabase import create_client, Client
@@ -7,6 +8,97 @@ from postgrest.exceptions import APIError
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+class ConnectionPool:
+    """Пул соединений для переиспользования клиентов Supabase"""
+    
+    def __init__(self, max_connections: int = 50):
+        """
+        Инициализация пула соединений
+        
+        Args:
+            max_connections: Максимальное количество соединений в пуле
+        """
+        # Кеш клиентов: ключ = (url, key) или (url, key, bot_id)
+        self._clients: Dict[tuple, Client] = {}
+        self._lock = asyncio.Lock()
+        self._max_connections = max_connections
+        self._connection_count = 0
+    
+    async def get_client(self, url: str, key: str, bot_id: Optional[str] = None) -> Client:
+        """
+        Получает клиент из пула или создает новый
+        
+        Args:
+            url: URL Supabase
+            key: API ключ Supabase
+            bot_id: ID бота (опционально, для изоляции)
+        
+        Returns:
+            Client: Клиент Supabase
+        """
+        # Ключ для кеша: используем общий клиент для всех запросов без bot_id
+        # или отдельный для каждого bot_id (если нужна изоляция)
+        cache_key = (url, key, bot_id) if bot_id else (url, key, None)
+        
+        async with self._lock:
+            # Проверяем, есть ли клиент в пуле
+            if cache_key in self._clients:
+                client = self._clients[cache_key]
+                # Проверяем, что клиент еще валиден (базовая проверка)
+                if client:
+                    logger.debug(f"Использован существующий клиент из пула для {'bot_id: ' + bot_id if bot_id else 'общий'}")
+                    return client
+            
+            # Если пул переполнен, удаляем старые соединения
+            if self._connection_count >= self._max_connections:
+                # Удаляем первое соединение (FIFO)
+                if self._clients:
+                    first_key = next(iter(self._clients))
+                    del self._clients[first_key]
+                    self._connection_count -= 1
+                    logger.warning(f"Пул соединений переполнен, удалено соединение: {first_key}")
+            
+            # Создаем новый клиент
+            try:
+                client = create_client(url, key)
+                self._clients[cache_key] = client
+                self._connection_count += 1
+                logger.info(f"Создан новый клиент Supabase в пуле{' для bot_id: ' + bot_id if bot_id else ' (общий)'}. Всего соединений: {self._connection_count}")
+                return client
+            except Exception as e:
+                logger.error(f"Ошибка создания клиента Supabase: {e}")
+                raise
+    
+    async def clear(self):
+        """Очищает пул соединений"""
+        async with self._lock:
+            self._clients.clear()
+            self._connection_count = 0
+            logger.info("Пул соединений очищен")
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Возвращает статистику пула"""
+        return {
+            "total_connections": self._connection_count,
+            "max_connections": self._max_connections,
+            "cached_clients": len(self._clients)
+        }
+
+
+# Глобальный пул соединений (инициализируется с настройками из config)
+_connection_pool: Optional[ConnectionPool] = None
+
+def _get_connection_pool() -> ConnectionPool:
+    """Получает или создает глобальный пул соединений"""
+    global _connection_pool
+    if _connection_pool is None:
+        max_connections = getattr(settings, 'DB_POOL_MAX_CONNECTIONS', 50)
+        _connection_pool = ConnectionPool(max_connections=max_connections)
+        logger.info(f"Инициализирован пул соединений Supabase (максимум: {max_connections})")
+    return _connection_pool
+
 
 class SupabaseClient:
     """Клиент для работы с Supabase с поддержкой bot_id для мультиботовой архитектуры"""
@@ -24,15 +116,17 @@ class SupabaseClient:
         self.client: Optional[Client] = None
         
         if self.bot_id:
-            logger.info(f"Инициализация SupabaseClient для bot_id: {self.bot_id}")
+            logger.debug(f"Инициализация SupabaseClient для bot_id: {self.bot_id}")
         else:
-            logger.info("SupabaseClient инициализирован без bot_id - доступ ко всем ботам")
+            logger.debug("SupabaseClient инициализирован без bot_id - доступ ко всем ботам")
     
     async def initialize(self):
-        """Инициализация клиента Supabase"""
+        """Инициализация клиента Supabase из пула соединений"""
         try:
-            self.client = create_client(self.url, self.key)
-            logger.info(f"Supabase client инициализирован{f' для bot_id: {self.bot_id}' if self.bot_id else ''}")
+            # Получаем клиент из пула (переиспользуем существующие соединения)
+            pool = _get_connection_pool()
+            self.client = await pool.get_client(self.url, self.key, self.bot_id)
+            logger.debug(f"Supabase client инициализирован из пула{f' для bot_id: {self.bot_id}' if self.bot_id else ''}")
         except Exception as e:
             logger.error(f"Ошибка инициализации Supabase client: {e}")
             raise
@@ -122,20 +216,41 @@ class SupabaseClient:
             return False
     
     async def get_dashboard_metrics(self, bot_id: str, days: int = 7) -> Dict[str, Any]:
-        """Получает метрики для дашборда (оптимизированная версия)"""
+        """Получает метрики для дашборда (оптимизированная версия с параллельными запросами)"""
         try:
             cutoff_date = datetime.now() - timedelta(days=days)
             today = datetime.now(timezone.utc).date()
             
-            # ОПТИМИЗАЦИЯ: Один запрос для получения всех пользователей с created_at
-            # Затем считаем новые пользователи в памяти (быстрее чем второй запрос к БД)
-            real_users_query = self.client.table('sales_users').select(
-                'telegram_id', 'created_at'
-            ).eq('bot_id', bot_id).not_.like('first_name', 'Test%')
-            real_users_response = real_users_query.execute()
-            all_users = real_users_response.data or []
+            # ОПТИМИЗАЦИЯ: Выполняем запросы пользователей и сессий параллельно
+            async def get_users():
+                real_users_query = self.client.table('sales_users').select(
+                    'telegram_id', 'created_at'
+                ).eq('bot_id', bot_id).not_.like('first_name', 'Test%')
+                real_users_response = real_users_query.execute()
+                return real_users_response.data or []
+            
+            async def get_sessions():
+                sessions_query = self.client.table('sales_chat_sessions').select(
+                    'id', 'user_id', 'current_stage', 'created_at'
+                ).eq('bot_id', bot_id).gte('created_at', cutoff_date.isoformat())
+                sessions_response = sessions_query.execute()
+                return sessions_response.data or []
+            
+            # Параллельное выполнение запросов
+            all_users, all_sessions = await asyncio.gather(
+                get_users(),
+                get_sessions()
+            )
+            
             real_user_ids = [u['telegram_id'] for u in all_users]
             total_users = len(real_user_ids)
+            
+            # ОПТИМИЗАЦИЯ: Используем Set для O(1) поиска вместо O(n) списка
+            real_user_ids_set = set(real_user_ids) if real_user_ids else set()
+            
+            # Фильтруем сессии по реальным пользователям (в памяти, быстрее чем в БД)
+            sessions = [s for s in all_sessions if s.get('user_id') in real_user_ids_set] if real_user_ids_set else all_sessions
+            session_ids = [s['id'] for s in sessions]
             
             # Считаем новых пользователей из уже полученных данных (оптимизация)
             new_users = 0
@@ -149,17 +264,6 @@ class SupabaseClient:
                                 new_users += 1
                         except (ValueError, AttributeError):
                             continue
-            
-            # ОПТИМИЗАЦИЯ: Один запрос для сессий (вместо двух)
-            # Получаем все сессии за период с нужными полями
-            sessions_query = self.client.table('sales_chat_sessions').select(
-                'id', 'user_id', 'current_stage', 'created_at'
-            ).eq('bot_id', bot_id).gte('created_at', cutoff_date.isoformat())
-            if real_user_ids:  # Добавляем фильтр по реальным пользователям
-                sessions_query = sessions_query.in_('user_id', real_user_ids)
-            sessions_response = sessions_query.execute()
-            sessions = sessions_response.data or []
-            session_ids = [s['id'] for s in sessions]
             
             # Активные пользователи сегодня
             logger.info(f"🔍 Подсчет активных пользователей за сегодня ({today})")
@@ -262,25 +366,32 @@ class SupabaseClient:
     # Метод get_revenue_by_days удалён по требованию. Оставлены метрики и воронка.
     
     async def get_user_growth_data(self, bot_id: str, days: int = 7, base_total: int = 0) -> List[Dict[str, Any]]:
-        """Получает данные роста пользователей по дням (оптимизированная версия)"""
+        """Получает данные роста пользователей по дням (оптимизированная версия с параллельными запросами)"""
         try:
             cutoff_date = datetime.now() - timedelta(days=days)
             
-            # Получаем всех пользователей за период одним запросом
-            users_query = self.client.table('sales_users').select('telegram_id,created_at').eq(
-                'bot_id', bot_id
-            ).not_.like('first_name', 'Test%').gte('created_at', cutoff_date.isoformat())
-            users_response = users_query.execute()
-            all_users = users_response.data if users_response.data else []
+            # ОПТИМИЗАЦИЯ: Выполняем запросы пользователей и сессий параллельно
+            async def get_users():
+                users_query = self.client.table('sales_users').select('telegram_id,created_at').eq(
+                    'bot_id', bot_id
+                ).not_.like('first_name', 'Test%').gte('created_at', cutoff_date.isoformat())
+                users_response = users_query.execute()
+                return users_response.data if users_response.data else []
             
-            # Получаем все сессии за период одним запросом
-            sessions_query = self.client.table('sales_chat_sessions').select('user_id,created_at').eq(
-                'bot_id', bot_id
-            ).gte('created_at', cutoff_date.isoformat())
-            sessions_response = sessions_query.execute()
-            all_sessions = sessions_response.data if sessions_response.data else []
+            async def get_sessions():
+                sessions_query = self.client.table('sales_chat_sessions').select('user_id,created_at').eq(
+                    'bot_id', bot_id
+                ).gte('created_at', cutoff_date.isoformat())
+                sessions_response = sessions_query.execute()
+                return sessions_response.data if sessions_response.data else []
             
-            # Создаем множество реальных пользователей из уже полученных данных
+            # Параллельное выполнение запросов
+            all_users, all_sessions = await asyncio.gather(
+                get_users(),
+                get_sessions()
+            )
+            
+            # ОПТИМИЗАЦИЯ: Используем Set для O(1) поиска
             real_user_ids = {u['telegram_id'] for u in all_users}
             
             # Группируем данные по дням
@@ -336,6 +447,26 @@ class SupabaseClient:
 
 # Создание глобального экземпляра
 def get_supabase_client(bot_id: str = None) -> SupabaseClient:
-    """Фабрика для создания клиента Supabase"""
+    """
+    Фабрика для создания клиента Supabase с поддержкой connection pooling
+    
+    Args:
+        bot_id: Идентификатор бота (опционально)
+    
+    Returns:
+        SupabaseClient: Клиент для работы с Supabase
+    """
     client = SupabaseClient(bot_id)
     return client
+
+
+def get_connection_pool_stats() -> Dict[str, Any]:
+    """Возвращает статистику пула соединений"""
+    pool = _get_connection_pool()
+    return pool.get_stats()
+
+
+async def clear_connection_pool():
+    """Очищает пул соединений (полезно для тестов или graceful shutdown)"""
+    pool = _get_connection_pool()
+    await pool.clear()

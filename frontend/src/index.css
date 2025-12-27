@@ -16,6 +16,8 @@
     min-height: 100vh;
     padding: 0;
     margin: 0;
+    /* ОПТИМИЗАЦИЯ: font-display: swap для быстрой загрузки */
+    font-display: swap;
   }
   
   #root {
