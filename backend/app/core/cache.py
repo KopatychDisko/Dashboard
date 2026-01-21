@@ -176,3 +176,5 @@ def clear_cache(endpoint: Optional[str] = None) -> None:
     """Очищает кеш"""
     _response_cache.clear(endpoint)
 
+
+

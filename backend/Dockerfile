@@ -29,16 +29,21 @@ WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
+# Создание непривилегированного пользователя и директории для логов
+RUN adduser --disabled-password --gecos '' appuser && \
+    mkdir -p /app/logs && \
+    chown -R appuser:appuser /app/logs
+
 # Копирование кода приложения
 COPY . .
 
-# Создание непривилегированного пользователя
-RUN adduser --disabled-password --gecos '' appuser && \
-    chown -R appuser:appuser /app
+# Установка владельца для всего приложения
+RUN chown -R appuser:appuser /app
 USER appuser
 
 # Открытие порта
 EXPOSE 8000
 
-# Запуск приложения
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Запуск приложения с production настройками
+# Используем переменную окружения WORKERS для количества воркеров (по умолчанию 4)
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${WORKERS:-4} --timeout-keep-alive 5 --no-access-log"]

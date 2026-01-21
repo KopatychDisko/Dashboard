@@ -11,6 +11,7 @@ services:
       - ENVIRONMENT=production
       - FRONTEND_URL=https://dshb.lemifar.ru
       - CORS_ORIGINS=https://dshb.lemifar.ru
+      - WORKERS=4
     restart: unless-stopped
     networks:
       - telegram-dashboard
