@@ -54,3 +54,5 @@ class RequestTimeoutMiddleware(BaseHTTPMiddleware):
             # Пробрасываем другие исключения дальше
             raise
 
+
+

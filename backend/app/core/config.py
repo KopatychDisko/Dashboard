@@ -10,11 +10,11 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str 
     
     # Telegram
-    TELEGRAM_BOT_TOKEN: str = '8470982948:AAHrDkCYnDOqcdZb8GIt-1L50zsF_9UVPLc'  # Должен быть в .env
+    TELEGRAM_BOT_TOKEN: str  # Должен быть в .env
     TELEGRAM_BOT_USERNAME: str = "DashBoardMetricksBot"
     
-    # Security (если не используется JWT, можно сделать опциональным)
-    SECRET_KEY: str = "change-this-in-production"  # Опционально, но лучше указать в .env
+    # Security
+    SECRET_KEY: str  # Должен быть в .env
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
