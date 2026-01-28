@@ -70,7 +70,7 @@ const BotSelectionPage = () => {
         try {
           const botsResponse = await botsAPI.getUserBots(telegramData.telegram_id)
           if (botsResponse.data.success) {
-            setBots(botsResponse.data.bots)
+            setBots(botsResponse.data.bots || [])
           } else {
             setError('Не удалось загрузить список ботов')
           }
@@ -128,11 +128,16 @@ const BotSelectionPage = () => {
       
       // Обрабатываем авторизацию Telegram
       handleTelegramAuth(telegramAuthData)
-    } else if (user && user.telegram_id && !authProcessingRef.current && !botsLoadedRef.current) {
-      // Загружаем боты только если они еще не загружены
+    } else if (user && user.telegram_id && !authProcessingRef.current && !botsLoadedRef.current && location.search === '') {
+      // Загружаем боты только если:
+      // 1. Пользователь авторизован
+      // 2. Авторизация не обрабатывается
+      // 3. Боты еще не загружены
+      // 4. Нет параметров авторизации в URL (чтобы не конфликтовать с обработкой параметров)
       loadUserBots()
-    } else if (!loading && !authProcessingRef.current && !user) {
+    } else if (!loading && !authProcessingRef.current && !user && location.search === '') {
       // Проверяем loading, чтобы не редиректить во время проверки авторизации
+      // И только если нет параметров авторизации в URL
       navigate('/login', { replace: true })
     }
   }, [location.search, user, navigate, loading, handleTelegramAuth, loadUserBots])
