@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
 
 const TELEGRAM_SCRIPT_ID = 'telegram-login-script'
 
 const LoginPage = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -17,8 +18,18 @@ const LoginPage = () => {
     if (user && user.telegram_id) {
       console.log('User already authenticated, redirecting to bots')
       navigate('/bots', { replace: true })
+      return
     }
-  }, [user, navigate])
+
+    // Если есть параметры авторизации в URL, редиректим на /bots для обработки
+    const params = new URLSearchParams(location.search)
+    const hasAuthParams = params.get('id') && params.get('hash') && params.get('first_name')
+    
+    if (hasAuthParams) {
+      // Редиректим на /bots с параметрами для обработки там
+      navigate(`/bots?${location.search}`, { replace: true })
+    }
+  }, [user, navigate, location.search])
 
   useEffect(() => {
     // Если виджет уже инициализирован, не пересоздаем его
