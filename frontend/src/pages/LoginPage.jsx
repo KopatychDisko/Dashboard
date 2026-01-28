@@ -15,11 +15,18 @@ const LoginPage = () => {
 
   // Обрабатываем редирект после авторизации
   useEffect(() => {
+    console.log('[LoginPage] useEffect: проверка редиректа', {
+      hasUser: !!user,
+      telegram_id: user?.telegram_id,
+      locationSearch: location.search
+    })
+    
     // Если есть параметры авторизации в URL, всегда редиректим на /bots для обработки
     const params = new URLSearchParams(location.search)
     const hasAuthParams = params.get('id') && params.get('hash') && params.get('first_name')
     
     if (hasAuthParams) {
+      console.log('[LoginPage] useEffect: обнаружены параметры авторизации, редирект на /bots')
       // Редиректим на /bots с параметрами для обработки там
       navigate(`/bots?${location.search}`, { replace: true })
       return
@@ -27,6 +34,7 @@ const LoginPage = () => {
 
     // Если пользователь уже авторизован и нет параметров авторизации, редиректим на /bots
     if (user && user.telegram_id) {
+      console.log('[LoginPage] useEffect: пользователь авторизован, редирект на /bots')
       navigate('/bots', { replace: true })
     }
   }, [user, navigate, location.search])
