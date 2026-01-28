@@ -13,21 +13,21 @@ const LoginPage = () => {
   const loadingRef = useRef(true)
   const widgetInitializedRef = useRef(false)
 
-  // Если пользователь уже авторизован, редиректим на /bots
+  // Обрабатываем редирект после авторизации
   useEffect(() => {
-    if (user && user.telegram_id) {
-      console.log('User already authenticated, redirecting to bots')
-      navigate('/bots', { replace: true })
-      return
-    }
-
-    // Если есть параметры авторизации в URL, редиректим на /bots для обработки
+    // Если есть параметры авторизации в URL, всегда редиректим на /bots для обработки
     const params = new URLSearchParams(location.search)
     const hasAuthParams = params.get('id') && params.get('hash') && params.get('first_name')
     
     if (hasAuthParams) {
       // Редиректим на /bots с параметрами для обработки там
       navigate(`/bots?${location.search}`, { replace: true })
+      return
+    }
+
+    // Если пользователь уже авторизован и нет параметров авторизации, редиректим на /bots
+    if (user && user.telegram_id) {
+      navigate('/bots', { replace: true })
     }
   }, [user, navigate, location.search])
 

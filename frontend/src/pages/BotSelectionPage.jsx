@@ -119,8 +119,10 @@ const BotSelectionPage = () => {
       hash: params.get('hash')
     }
 
+    const hasAuthParams = telegramAuthData.telegram_id && telegramAuthData.hash && telegramAuthData.first_name
+
     // Если есть параметры авторизации и авторизация еще не обрабатывается
-    if (telegramAuthData.telegram_id && telegramAuthData.hash && telegramAuthData.first_name && !authProcessingRef.current) {
+    if (hasAuthParams && !authProcessingRef.current) {
       authProcessingRef.current = true
       
       // Сразу очищаем параметры из URL, чтобы избежать повторной авторизации
@@ -128,16 +130,26 @@ const BotSelectionPage = () => {
       
       // Обрабатываем авторизацию Telegram
       handleTelegramAuth(telegramAuthData)
-    } else if (user && user.telegram_id && !authProcessingRef.current && !botsLoadedRef.current && location.search === '') {
-      // Загружаем боты только если:
-      // 1. Пользователь авторизован
-      // 2. Авторизация не обрабатывается
-      // 3. Боты еще не загружены
-      // 4. Нет параметров авторизации в URL (чтобы не конфликтовать с обработкой параметров)
+      return // Не продолжаем выполнение, чтобы не сработали другие условия
+    }
+    
+    // Если авторизация обрабатывается или идет загрузка, не делаем ничего
+    if (authProcessingRef.current || loading) {
+      return
+    }
+    
+    // Если пользователь авторизован и боты еще не загружены (и нет параметров авторизации)
+    if (user && user.telegram_id && !botsLoadedRef.current && !hasAuthParams) {
       loadUserBots()
-    } else if (!loading && !authProcessingRef.current && !user && location.search === '') {
-      // Проверяем loading, чтобы не редиректить во время проверки авторизации
-      // И только если нет параметров авторизации в URL
+      return
+    }
+    
+    // Редиректим на /login только если:
+    // 1. Пользователь не авторизован
+    // 2. Нет параметров авторизации в URL
+    // 3. Авторизация не обрабатывается
+    // 4. Не идет загрузка
+    if (!user && !hasAuthParams && !authProcessingRef.current && !loading) {
       navigate('/login', { replace: true })
     }
   }, [location.search, user, navigate, loading, handleTelegramAuth, loadUserBots])
