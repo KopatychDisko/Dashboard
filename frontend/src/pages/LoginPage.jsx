@@ -65,13 +65,8 @@ const LoginPage = () => {
       script.setAttribute('data-radius', '12')
       script.setAttribute('data-request-access', 'write')
       
-      // Определяем URL для редиректа в зависимости от окружения
-      let authUrl
-      if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
-        authUrl = `${window.location.protocol}//${window.location.hostname}/bots`
-      } else {
-        authUrl = `${window.location.origin}/bots`
-      }
+      // Всегда используем продакшен URL для редиректа
+      const authUrl = 'https://dshb.lemifar.ru/bots'
       
       // Используем ТОЛЬКО redirect подход
       script.setAttribute('data-auth-url', authUrl)

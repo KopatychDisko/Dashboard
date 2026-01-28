@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { botsAPI } from '../utils/api'
@@ -12,6 +12,7 @@ const BotSelectionPage = () => {
   const [bots, setBots] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const authProcessingRef = useRef(false)
 
   useEffect(() => {
     // Проверяем наличие параметров авторизации в URL
@@ -26,15 +27,19 @@ const BotSelectionPage = () => {
       hash: params.get('hash')
     }
 
-    // Убираем лишние логи для ускорения
-
-    // Если есть параметры авторизации, выполняем вход
-    if (telegramAuthData.telegram_id && telegramAuthData.hash && telegramAuthData.first_name) {
+    // Если есть параметры авторизации и авторизация еще не обрабатывается
+    if (telegramAuthData.telegram_id && telegramAuthData.hash && telegramAuthData.first_name && !authProcessingRef.current) {
+      authProcessingRef.current = true
+      
+      // Сразу очищаем параметры из URL, чтобы избежать повторной авторизации
+      navigate('/bots', { replace: true })
+      
       // Обрабатываем авторизацию Telegram
       handleTelegramAuth(telegramAuthData)
-    } else if (user && user.telegram_id) {
+    } else if (user && user.telegram_id && !authProcessingRef.current) {
       loadUserBots()
-    } else {
+    } else if (!loading && !authProcessingRef.current) {
+      // Проверяем loading, чтобы не редиректить во время проверки авторизации
       navigate('/login', { replace: true })
     }
   }, [location.search, user, navigate])
@@ -47,8 +52,6 @@ const BotSelectionPage = () => {
       const result = await login(telegramData)
       
       if (result?.success) {
-        navigate('/bots', { replace: true })
-        
         try {
           const botsResponse = await botsAPI.getUserBots(telegramData.telegram_id)
           if (botsResponse.data.success) {
@@ -63,16 +66,21 @@ const BotSelectionPage = () => {
           if (import.meta.env.DEV) {
           console.error('Ошибка загрузки ботов:', err)
           }
+        } finally {
+          setLoading(false)
+          authProcessingRef.current = false
         }
       } else {
         setError(result?.error || 'Ошибка авторизации')
         setLoading(false)
+        authProcessingRef.current = false
         setTimeout(() => navigate('/login', { replace: true }), 3000)
       }
     } catch (err) {
       const errorMessage = err.processedError?.message || err.response?.data?.detail || 'Ошибка авторизации. Попробуйте снова.'
       setError(errorMessage)
       setLoading(false)
+      authProcessingRef.current = false
       setTimeout(() => navigate('/login', { replace: true }), 3000)
       
       if (import.meta.env.DEV) {
