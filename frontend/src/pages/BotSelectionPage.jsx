@@ -6,7 +6,7 @@ import LoadingOverlay from '../components/LoadingOverlay'
 import { Bot, Users, ChevronRight, LogOut } from 'lucide-react'
 
 const BotSelectionPage = () => {
-  const { user, logout, login } = useAuth()
+  const { user, logout, login, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [bots, setBots] = useState([])
@@ -27,6 +27,7 @@ const BotSelectionPage = () => {
 
     // Если уже загружено и не принудительная перезагрузка - пропускаем
     if (botsLoadedRef.current && !forceReload) {
+      setLoading(false) // Убеждаемся, что loading сброшен
       return
     }
 
@@ -36,17 +37,28 @@ const BotSelectionPage = () => {
       if (forceReload) {
         botsLoadedRef.current = false // Сбрасываем флаг при принудительной перезагрузке
       }
-      botsLoadedRef.current = true
-      const response = await botsAPI.getUserBots(user.telegram_id)
+      
+      // Добавляем таймаут для загрузки ботов (10 секунд)
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Таймаут загрузки ботов')), 10000)
+      )
+      
+      const botsPromise = botsAPI.getUserBots(user.telegram_id)
+      const response = await Promise.race([botsPromise, timeoutPromise])
       
       if (response.data.success) {
-        setBots(response.data.bots)
+        setBots(response.data.bots || [])
+        botsLoadedRef.current = true // Помечаем как загруженное только после успешной загрузки
       } else {
         setError('Не удалось загрузить список ботов')
+        botsLoadedRef.current = false // Не помечаем как загруженное при ошибке
       }
     } catch (err) {
-      const errorMessage = err.processedError?.message || err.response?.data?.detail || 'Ошибка загрузки ботов'
+      const errorMessage = err.message === 'Таймаут загрузки ботов'
+        ? 'Превышено время ожидания загрузки ботов. Попробуйте обновить страницу.'
+        : (err.processedError?.message || err.response?.data?.detail || 'Ошибка загрузки ботов')
       setError(errorMessage)
+      botsLoadedRef.current = false // Не помечаем как загруженное при ошибке
       
       if (import.meta.env.DEV) {
       console.error('Ошибка загрузки ботов:', err)
@@ -64,19 +76,29 @@ const BotSelectionPage = () => {
       const result = await login(telegramData)
       
       if (result?.success) {
-        // Помечаем, что боты уже загружаются через handleTelegramAuth
-        botsLoadedRef.current = true
-        
         try {
-          const botsResponse = await botsAPI.getUserBots(telegramData.telegram_id)
+          // Добавляем таймаут для загрузки ботов (10 секунд)
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Таймаут загрузки ботов')), 10000)
+          )
+          
+          const botsPromise = botsAPI.getUserBots(telegramData.telegram_id)
+          const botsResponse = await Promise.race([botsPromise, timeoutPromise])
+          
           if (botsResponse.data.success) {
             setBots(botsResponse.data.bots || [])
+            // Помечаем, что боты успешно загружены только после успешной загрузки
+            botsLoadedRef.current = true
           } else {
             setError('Не удалось загрузить список ботов')
+            botsLoadedRef.current = false // Не помечаем как загруженное при ошибке
           }
         } catch (err) {
-          const errorMessage = err.processedError?.message || err.response?.data?.detail || 'Ошибка загрузки ботов'
+          const errorMessage = err.message === 'Таймаут загрузки ботов' 
+            ? 'Превышено время ожидания загрузки ботов. Попробуйте обновить страницу.'
+            : (err.processedError?.message || err.response?.data?.detail || 'Ошибка загрузки ботов')
           setError(errorMessage)
+          botsLoadedRef.current = false // Не помечаем как загруженное при ошибке
           
           if (import.meta.env.DEV) {
           console.error('Ошибка загрузки ботов:', err)
@@ -107,6 +129,27 @@ const BotSelectionPage = () => {
   }, [login, navigate])
 
   useEffect(() => {
+    // Защита от зависания loading - если loading true больше 15 секунд, сбрасываем
+    let loadingTimeout
+    if (loading) {
+      loadingTimeout = setTimeout(() => {
+        if (loading) {
+          console.warn('Loading timeout - resetting state')
+          setLoading(false)
+          authProcessingRef.current = false
+          botsLoadedRef.current = false
+        }
+      }, 15000)
+    }
+    
+    return () => {
+      if (loadingTimeout) {
+        clearTimeout(loadingTimeout)
+      }
+    }
+  }, [loading])
+
+  useEffect(() => {
     // Проверяем наличие параметров авторизации в URL
     const params = new URLSearchParams(location.search)
     const telegramAuthData = {
@@ -133,14 +176,20 @@ const BotSelectionPage = () => {
       return // Не продолжаем выполнение, чтобы не сработали другие условия
     }
     
-    // Если авторизация обрабатывается или идет загрузка, не делаем ничего
-    if (authProcessingRef.current || loading) {
+    // Если авторизация обрабатывается, не делаем ничего
+    if (authProcessingRef.current) {
       return
     }
     
     // Если пользователь авторизован и боты еще не загружены (и нет параметров авторизации)
-    if (user && user.telegram_id && !botsLoadedRef.current && !hasAuthParams) {
+    // Не проверяем loading, так как loadUserBots сам управляет состоянием loading
+    if (user && user.telegram_id && !botsLoadedRef.current && !hasAuthParams && !authProcessingRef.current) {
       loadUserBots()
+      return
+    }
+    
+    // Если идет загрузка ботов локально и нет пользователя, ждем
+    if (loading && !user && !hasAuthParams) {
       return
     }
     
@@ -148,11 +197,12 @@ const BotSelectionPage = () => {
     // 1. Пользователь не авторизован
     // 2. Нет параметров авторизации в URL
     // 3. Авторизация не обрабатывается
-    // 4. Не идет загрузка
-    if (!user && !hasAuthParams && !authProcessingRef.current && !loading) {
+    // 4. Не идет загрузка ботов
+    // 5. Проверка авторизации завершена (не authLoading)
+    if (!user && !hasAuthParams && !authProcessingRef.current && !loading && !authLoading) {
       navigate('/login', { replace: true })
     }
-  }, [location.search, user, navigate, loading, handleTelegramAuth, loadUserBots])
+  }, [location.search, user, navigate, loading, handleTelegramAuth, loadUserBots, authLoading])
 
   const handleBotSelect = (botId) => {
     navigate(`/dashboard/${botId}`)
