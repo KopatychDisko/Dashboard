@@ -82,13 +82,29 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      // Вызываем logout на сервере для очистки куков
-      await apiClient.post('/auth/logout')
+      // Вызываем logout на сервере для очистки куков с таймаутом
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 3000) // 3 секунды таймаут
+      
+      try {
+        await apiClient.post('/auth/logout', {}, {
+          signal: controller.signal,
+          timeout: 3000 // Дополнительный таймаут на уровне axios
+        })
+      } finally {
+        clearTimeout(timeoutId)
+      }
     } catch (error) {
-      if (import.meta.env.DEV) {
+      // Игнорируем ошибки - все равно очищаем локальное состояние
+      // AbortError и timeout ошибки не логируем
+      if (import.meta.env.DEV && 
+          error.name !== 'AbortError' && 
+          error.name !== 'CanceledError' &&
+          error.code !== 'ECONNABORTED') {
         console.error('Ошибка выхода:', error)
       }
     } finally {
+      // Всегда очищаем локальное состояние, даже если запрос не прошел
       clearAuth()
     }
   }
