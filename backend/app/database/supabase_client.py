@@ -226,7 +226,7 @@ class SupabaseClient:
                 real_users_query = self.client.table('sales_users').select(
                     'telegram_id', 'created_at'
                 ).eq('bot_id', bot_id).not_.like('first_name', 'Test%')
-            real_users_response = real_users_query.execute()
+                real_users_response = real_users_query.execute()
                 return real_users_response.data or []
             
             async def get_sessions():
@@ -372,17 +372,17 @@ class SupabaseClient:
             
             # ОПТИМИЗАЦИЯ: Выполняем запросы пользователей и сессий параллельно
             async def get_users():
-            users_query = self.client.table('sales_users').select('telegram_id,created_at').eq(
-                'bot_id', bot_id
-            ).not_.like('first_name', 'Test%').gte('created_at', cutoff_date.isoformat())
-            users_response = users_query.execute()
+                users_query = self.client.table('sales_users').select('telegram_id,created_at').eq(
+                    'bot_id', bot_id
+                ).not_.like('first_name', 'Test%').gte('created_at', cutoff_date.isoformat())
+                users_response = users_query.execute()
                 return users_response.data if users_response.data else []
             
             async def get_sessions():
-            sessions_query = self.client.table('sales_chat_sessions').select('user_id,created_at').eq(
-                'bot_id', bot_id
-            ).gte('created_at', cutoff_date.isoformat())
-            sessions_response = sessions_query.execute()
+                sessions_query = self.client.table('sales_chat_sessions').select('user_id,created_at').eq(
+                    'bot_id', bot_id
+                ).gte('created_at', cutoff_date.isoformat())
+                sessions_response = sessions_query.execute()
                 return sessions_response.data if sessions_response.data else []
             
             # Параллельное выполнение запросов
