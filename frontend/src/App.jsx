@@ -21,9 +21,7 @@ function AppRoutes() {
     <Routes>
       <Route 
         path="/login" 
-        element={
-          isAuthenticated ? <Navigate to="/bots" replace /> : <LoginPage />
-        } 
+        element={<LoginPage />}
       />
       <Route 
         path="/bots" 
