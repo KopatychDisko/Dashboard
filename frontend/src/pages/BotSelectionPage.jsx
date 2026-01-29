@@ -215,10 +215,15 @@ const BotSelectionPage = () => {
       console.log('[BotSelectionPage] useEffect: обнаружены параметры авторизации, начинаем обработку')
       authProcessingRef.current = true
       
-      // Сразу очищаем параметры из URL, чтобы избежать повторной авторизации
-      navigate('/bots', { replace: true })
-      
       // Обрабатываем авторизацию Telegram
+      // Очищаем параметры из URL сразу, чтобы избежать повторной авторизации
+      // но сохраняем данные в переменной telegramAuthData
+      const currentSearch = location.search
+      if (currentSearch) {
+        navigate('/bots', { replace: true })
+      }
+      
+      // Обрабатываем авторизацию с сохраненными данными
       handleTelegramAuth(telegramAuthData)
       return // Не продолжаем выполнение, чтобы не сработали другие условия
     }
