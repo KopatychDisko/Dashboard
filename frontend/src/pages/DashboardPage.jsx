@@ -49,14 +49,11 @@ const DashboardPage = () => {
       }
       setError('')
       
-      // ОПТИМИЗАЦИЯ: Параллельная загрузка аналитики и событий
-      const [analyticsResponse, eventsResponse] = await Promise.all([
-        analyticsAPI.getDashboardAnalytics(botId, period),
-        analyticsAPI.getRecentEvents(botId, 10)
-      ])
+      const response = await analyticsAPI.getDashboardAnalytics(botId, period)
+      setAnalytics(response.data)
       
-      setAnalytics(analyticsResponse.data)
-      
+      // Загружаем последние события
+      const eventsResponse = await analyticsAPI.getRecentEvents(botId, 10)
       if (eventsResponse.data.success) {
         setEvents(eventsResponse.data.events || [])
       }
@@ -91,19 +88,10 @@ const DashboardPage = () => {
       clearInterval(pollingIntervalRef.current)
     }
 
-    // ОПТИМИЗАЦИЯ: Используем requestIdleCallback для polling (если доступен)
-    const scheduleRefresh = () => {
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(() => {
-          loadAnalytics(true) // Тихая загрузка без loading overlay
-        }, { timeout: REFRESH_INTERVAL })
-      } else {
-        loadAnalytics(true)
-      }
-    }
-    
     // Запускаем polling интервал
-    pollingIntervalRef.current = setInterval(scheduleRefresh, REFRESH_INTERVAL)
+    pollingIntervalRef.current = setInterval(() => {
+      loadAnalytics(true) // Тихая загрузка без loading overlay
+    }, REFRESH_INTERVAL)
 
     // Останавливаем polling когда вкладка неактивна (Page Visibility API)
     const handleVisibilityChange = () => {
@@ -116,16 +104,9 @@ const DashboardPage = () => {
       } else {
         // Перезапускаем polling при возврате на вкладку
         if (!pollingIntervalRef.current) {
-          const scheduleRefresh = () => {
-            if ('requestIdleCallback' in window) {
-              requestIdleCallback(() => {
-                loadAnalytics(true)
-              }, { timeout: REFRESH_INTERVAL })
-            } else {
-              loadAnalytics(true)
-            }
-          }
-          pollingIntervalRef.current = setInterval(scheduleRefresh, REFRESH_INTERVAL)
+          pollingIntervalRef.current = setInterval(() => {
+            loadAnalytics(true)
+          }, REFRESH_INTERVAL)
         }
       }
     }
