@@ -1,7 +1,7 @@
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Response, Request
 from pydantic import BaseModel
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from app.services.telegram_auth import TelegramAuth
 from app.database.supabase_client import get_supabase_client
@@ -15,9 +15,9 @@ class TelegramAuthRequest(BaseModel):
     """Запрос на авторизацию через Telegram"""
     telegram_id: int
     first_name: str
-    last_name: str = None
-    username: str = None
-    photo_url: str = None
+    last_name: Optional[str] = None
+    username: Optional[str] = None
+    photo_url: Optional[str] = None
     auth_date: int
     hash: str
 
@@ -26,8 +26,8 @@ class AuthResponse(BaseModel):
     success: bool
     telegram_id: int
     first_name: str
-    last_name: str = None
-    username: str = None
+    last_name: Optional[str] = None
+    username: Optional[str] = None
     bots: list = []
     message: str
 
