@@ -9,8 +9,10 @@ RUN apk add --no-cache libc6-compat
 # Копирование файлов зависимостей
 COPY package*.json ./
 
-# Установка зависимостей с кэшированием
-RUN npm ci --prefer-offline --no-audit
+# Установка зависимостей с BuildKit кэшированием
+# --mount=type=cache создает кэш между сборками
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --prefer-offline --no-audit
 
 # Builder stage
 FROM node:18-alpine AS builder
@@ -40,7 +42,9 @@ ENV VITE_DISABLE_ESLINT=true \
     GENERATE_SOURCEMAP=false
 
 # Сборка приложения с оптимизациями
-RUN npm run build
+RUN npm run build && \
+    # Очищаем node_modules после сборки (они больше не нужны)
+    rm -rf node_modules
 
 # Production stage
 FROM nginx:alpine

@@ -67,8 +67,7 @@ export default defineConfig({
       'react-router-dom', 
       'recharts', 
       'date-fns', 
-      'axios', 
-      'clsx'
+      'axios'
     ],
     exclude: ['fsevents'],
     esbuildOptions: {

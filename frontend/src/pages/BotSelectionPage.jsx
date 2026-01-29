@@ -253,7 +253,7 @@ const BotSelectionPage = () => {
       console.log('[BotSelectionPage] useEffect: идет загрузка, пользователь не установлен, ждем')
       return
     }
-    
+
     // Редиректим на /login только если:
     // 1. Пользователь не авторизован
     // 2. Нет параметров авторизации в URL
@@ -348,7 +348,7 @@ const BotSelectionPage = () => {
               </>
             ) : (
               <>
-                <LogOut size={18} />
+            <LogOut size={18} />
                 <span>Выйти</span>
               </>
             )}
