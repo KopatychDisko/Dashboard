@@ -1,39 +1,44 @@
-import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { analyticsAPI } from '../utils/api'
 import LoadingSpinner from '../components/LoadingSpinner'
 import LoadingOverlay from '../components/LoadingOverlay'
-import { ArrowLeft, Calendar, Download, Users, Activity } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
-import { ru } from 'date-fns/locale'
+import { ArrowLeft, Download, Users, Activity } from 'lucide-react'
+import SegmentsFilter from '../components/SegmentsFilter'
+import MetricCard from '../components/dashboard/MetricCard'
+import SectionHeader from '../components/dashboard/SectionHeader'
+import SegmentsTable from '../components/dashboard/SegmentsTable'
+import FunnelTable from '../components/dashboard/FunnelTable'
+import PeriodFilter from '../components/dashboard/PeriodFilter'
+import EventCard from '../components/dashboard/EventCard'
+import LoadingSpinnerPeriod from '../components/dashboard/LoadingSpinnerPeriod'
+import { convertAnalyticsToCSV, downloadCSV } from '../utils/csvExport'
 
 // ОПТИМИЗАЦИЯ: Lazy loading для тяжелых компонентов графиков
 const MetricsGrid = React.lazy(() => import('../components/dashboard/MetricsGrid'))
 const RevenueChart = React.lazy(() => import('../components/dashboard/RevenueChart'))
 const FunnelChart = React.lazy(() => import('../components/dashboard/FunnelChart'))
 const UserGrowthChart = React.lazy(() => import('../components/dashboard/UserGrowthChart'))
+const SegmentsPieChart = React.lazy(() => import('../components/dashboard/SegmentsPieChart'))
+const FunnelPieChart = React.lazy(() => import('../components/dashboard/FunnelPieChart'))
 
-// Функция для форматирования времени относительно МСК
-const getTimeAgo = (timestamp) => {
-  try {
-    const eventDate = new Date(timestamp)
-    return formatDistanceToNow(eventDate, { 
-      addSuffix: true, 
-      locale: ru 
-    })
-  } catch (e) {
-    return 'недавно'
-  }
-}
 
 const DashboardPage = () => {
   const { botId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
   const [analytics, setAnalytics] = useState(null)
+  const [detailedMetrics, setDetailedMetrics] = useState(null)
   const [events, setEvents] = useState([])
+  const [eventsLimit, setEventsLimit] = useState(5) // Лимит отображаемых событий
+  const [allEventsLoaded, setAllEventsLoaded] = useState(false) // Все события загружены
   const [loading, setLoading] = useState(true)
+  const [loadingPeriodMetrics, setLoadingPeriodMetrics] = useState(false) // Загрузка только метрик за период
+  const [selectedSegments, setSelectedSegments] = useState([]) // Выбранные сегменты для фильтрации общих метрик
+  const [selectedSegmentsPeriod, setSelectedSegmentsPeriod] = useState([]) // Выбранные сегменты для фильтрации метрик за период
+  const [tempPeriod, setTempPeriod] = useState(7) // Временное значение периода до применения
+  const [tempSelectedSegmentsPeriod, setTempSelectedSegmentsPeriod] = useState([]) // Временное значение сегментов до применения
   const [error, setError] = useState('')
   const [period, setPeriod] = useState(7)
   const [lastUpdate, setLastUpdate] = useState(null)
@@ -42,20 +47,82 @@ const DashboardPage = () => {
   const pollingIntervalRef = useRef(null)
   const REFRESH_INTERVAL = 30000 // 30 секунд
 
-  const loadAnalytics = useCallback(async (silent = false) => {
+  // Константы для периодов
+  const PERIOD_OPTIONS = [1, 7, 14, 30]
+
+  // Мемоизация фильтрованных сегментов
+  const filteredSegments = useMemo(() => {
+    if (!detailedMetrics?.general_metrics?.segments) return []
+    if (selectedSegments.length === 0) return detailedMetrics.general_metrics.segments
+    return detailedMetrics.general_metrics.segments.filter(
+      s => selectedSegments.includes(s.segment || 'Без сегмента')
+    )
+  }, [detailedMetrics?.general_metrics?.segments, selectedSegments])
+
+  const loadAnalytics = useCallback(async (silent = false, periodOnly = false) => {
+    // Используем ref для получения актуального периода в polling
+    const currentPeriod = periodOnly ? period : currentPeriodRef.current
     try {
       if (!silent) {
-      setLoading(true)
+        if (periodOnly) {
+          setLoadingPeriodMetrics(true)
+        } else {
+          setLoading(true)
+        }
       }
       setError('')
       
-      const response = await analyticsAPI.getDashboardAnalytics(botId, period)
-      setAnalytics(response.data)
-      
-      // Загружаем последние события
-      const eventsResponse = await analyticsAPI.getRecentEvents(botId, 10)
-      if (eventsResponse.data.success) {
-        setEvents(eventsResponse.data.events || [])
+      if (periodOnly) {
+        // Загружаем только метрики за период
+        const [dashboardResponse, detailedResponse] = await Promise.all([
+          analyticsAPI.getDashboardAnalytics(botId, currentPeriod),
+          analyticsAPI.getDetailedMetrics(botId, currentPeriod)
+        ])
+        
+        setAnalytics(dashboardResponse.data)
+        // Обновляем только period_metrics и user_growth_chart
+        setDetailedMetrics(prev => ({
+          ...prev,
+          period_metrics: detailedResponse.data.period_metrics,
+          user_growth_chart: detailedResponse.data.user_growth_chart,
+          active_today: detailedResponse.data.active_today,
+          period_days: detailedResponse.data.period_days
+        }))
+      } else {
+        // Загружаем все метрики
+        const [dashboardResponse, detailedResponse, eventsResponse] = await Promise.all([
+          analyticsAPI.getDashboardAnalytics(botId, currentPeriod),
+          analyticsAPI.getDetailedMetrics(botId, currentPeriod),
+          analyticsAPI.getRecentEvents(botId, 5)
+        ])
+        
+        setAnalytics(dashboardResponse.data)
+        
+        // При polling (silent=true) НЕ обновляем метрики за период, чтобы не перезаписывать выбранный пользователем период
+        if (silent) {
+          // Обновляем только общие метрики и события, но НЕ метрики за период
+          setDetailedMetrics(prev => ({
+            ...prev,
+            general_metrics: detailedResponse.data.general_metrics,
+            funnel_breakdown: detailedResponse.data.funnel_breakdown,
+            // НЕ обновляем period_metrics, user_growth_chart, active_today, period_days
+          }))
+        } else {
+          // При обычной загрузке обновляем все метрики
+          setDetailedMetrics(detailedResponse.data)
+        }
+        
+        if (eventsResponse.data.success) {
+          const loadedEvents = eventsResponse.data.events || []
+          setEvents(loadedEvents)
+          // Если загружено меньше чем запрошено (5), значит все события загружены
+          // Если загружено ровно 5, возможно есть еще - кнопка покажется
+          setAllEventsLoaded(loadedEvents.length < 5)
+          // Сбрасываем лимит только при обычной загрузке (не при polling), чтобы сохранить раскрытие событий
+          if (!silent) {
+            setEventsLimit(5)
+          }
+        }
       }
       
       // Обновляем время последнего обновления
@@ -70,18 +137,75 @@ const DashboardPage = () => {
       
       // Логируем только в development
       if (import.meta.env.DEV) {
-      console.error('Ошибка загрузки аналитики:', err)
+        console.error('Ошибка загрузки аналитики:', err)
       }
     } finally {
       if (!silent) {
-      setLoading(false)
+        if (periodOnly) {
+          setLoadingPeriodMetrics(false)
+        } else {
+          setLoading(false)
+        }
+      }
     }
-  }
   }, [botId, period])
 
+  // Обработчик применения фильтров
+  const handleApplyFilters = useCallback(() => {
+    setPeriod(tempPeriod)
+    setSelectedSegmentsPeriod(tempSelectedSegmentsPeriod)
+    // Загрузка произойдет в useEffect ниже
+  }, [tempPeriod, tempSelectedSegmentsPeriod])
+
+  // Загрузка дополнительных событий
+  const loadMoreEvents = useCallback(async () => {
+    try {
+      const newLimit = eventsLimit + 5
+      const previousEventsCount = events.length
+      const response = await analyticsAPI.getRecentEvents(botId, newLimit)
+      if (response.data.success) {
+        const loadedEvents = response.data.events || []
+        setEvents(loadedEvents)
+        setEventsLimit(newLimit)
+        // Если загружено меньше чем запрошено ИЛИ количество событий не увеличилось, значит все события загружены
+        if (loadedEvents.length < newLimit || loadedEvents.length === previousEventsCount) {
+          setAllEventsLoaded(true)
+        }
+      }
+    } catch (err) {
+      console.error('Ошибка загрузки дополнительных событий:', err)
+    }
+  }, [botId, eventsLimit, events.length])
+
+  // Ref для хранения актуального периода для polling
+  const currentPeriodRef = useRef(period)
+  
+  // Обновляем ref при изменении периода
   useEffect(() => {
-    // Первоначальная загрузка
-    loadAnalytics(false)
+    currentPeriodRef.current = period
+  }, [period])
+
+  // При изменении периода или сегментов загружаем только метрики за период
+  useEffect(() => {
+    if (analytics && detailedMetrics) {
+      loadAnalytics(false, true)
+    }
+  }, [period, selectedSegmentsPeriod])
+
+  // Анимация только когда выбраны все сегменты (по умолчанию)
+  const shouldAnimateSegmentsChart = selectedSegments.length === 0
+  const shouldAnimateFunnelChart = true // Воронка всегда анимируется при первой загрузке
+
+  useEffect(() => {
+    // При смене бота загружаем все метрики и синхронизируем временные значения
+    setTempPeriod(7)
+    setTempSelectedSegmentsPeriod([])
+    setPeriod(7)
+    setSelectedSegmentsPeriod([])
+    setEventsLimit(5) // Сбрасываем лимит событий
+    setAllEventsLoaded(false) // Сбрасываем флаг загрузки всех событий
+    currentPeriodRef.current = 7 // Обновляем ref
+    loadAnalytics(false, false)
 
     // Очистка предыдущего интервала если есть
     if (pollingIntervalRef.current) {
@@ -90,7 +214,7 @@ const DashboardPage = () => {
 
     // Запускаем polling интервал
     pollingIntervalRef.current = setInterval(() => {
-      loadAnalytics(true) // Тихая загрузка без loading overlay
+      loadAnalytics(true, false) // Тихая загрузка без loading overlay
     }, REFRESH_INTERVAL)
 
     // Останавливаем polling когда вкладка неактивна (Page Visibility API)
@@ -105,7 +229,7 @@ const DashboardPage = () => {
         // Перезапускаем polling при возврате на вкладку
         if (!pollingIntervalRef.current) {
           pollingIntervalRef.current = setInterval(() => {
-            loadAnalytics(true)
+            loadAnalytics(true, false)
           }, REFRESH_INTERVAL)
         }
       }
@@ -120,96 +244,22 @@ const DashboardPage = () => {
         pollingIntervalRef.current = null
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }
-  }, [botId, period, loadAnalytics])
+    }
+  }, [botId])
 
-  const convertToCSV = (data) => {
-    if (!data || !analytics) return ''
-    
-    const rows = []
-    
-    // Заголовок
-    rows.push('Метрика,Значение')
-    
-    // Основные метрики
-    if (analytics.metrics) {
-      rows.push(`Активных сегодня,${analytics.metrics.active_today || 0}`)
-      rows.push(`Всего пользователей,${analytics.metrics.total_users || 0}`)
-      rows.push(`Новые пользователи,${analytics.metrics.new_users || 0}`)
-      rows.push(`Период (дней),${analytics.metrics.period_days || period}`)
-      
-      if (analytics.metrics.total_sessions) {
-        rows.push(`Всего сессий,${analytics.metrics.total_sessions}`)
-      }
-      if (analytics.metrics.total_revenue) {
-        rows.push(`Общая выручка,${analytics.metrics.total_revenue}`)
-      }
-      if (analytics.metrics.conversion_rate) {
-        rows.push(`Конверсия,${analytics.metrics.conversion_rate}%`)
-      }
-    }
-    
-    // Воронка продаж
-    if (analytics.funnel && analytics.funnel.steps) {
-      rows.push('')
-      rows.push('Воронка продаж')
-      rows.push('Этап,Пользователей')
-      analytics.funnel.steps.forEach(step => {
-        rows.push(`${step.stage || step.name || 'Неизвестно'},${step.users_count || 0}`)
-      })
-    }
-    
-    // Данные роста пользователей
-    if (analytics.user_growth && analytics.user_growth.length > 0) {
-      rows.push('')
-      rows.push('Рост пользователей по дням')
-      rows.push('Дата,Всего пользователей,Новых пользователей,Активных пользователей')
-      analytics.user_growth.forEach(day => {
-        const date = new Date(day.date).toLocaleDateString('ru-RU')
-        rows.push(`${date},${day.total_users || 0},${day.new_users || 0},${day.active_users || 0}`)
-      })
-    }
-    
-    // Метаданные
-    rows.push('')
-    rows.push('Метаданные')
-    rows.push(`ID бота,${botId}`)
-    rows.push(`Период,${period} дней`)
-    rows.push(`Дата экспорта,${new Date().toLocaleString('ru-RU')}`)
-    
-    return rows.join('\n')
-  }
-
-  const handleExport = async () => {
+  const handleExport = useCallback(async () => {
     try {
       const response = await analyticsAPI.exportAnalytics(botId, period, 'csv')
-      
-      // Конвертируем данные в CSV
-      const csvContent = convertToCSV(response.data)
-      
-      // Создаем и скачиваем файл
-      const blob = new Blob(['\ufeff' + csvContent], {
-        type: 'text/csv;charset=utf-8;'
-      })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.style.display = 'none'
-      a.href = url
-      a.download = `analytics-${botId}-${period}days.csv`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      const csvContent = convertAnalyticsToCSV(response.data, period, botId)
+      downloadCSV(csvContent, `analytics-${botId}-${period}days.csv`)
     } catch (err) {
-      // Используем обработанную ошибку
       const errorMessage = err.processedError?.message || 'Не удалось экспортировать данные'
       setError(errorMessage)
-      
       if (import.meta.env.DEV) {
-      console.error('Ошибка экспорта:', err)
+        console.error('Ошибка экспорта:', err)
       }
     }
-  }
+  }, [botId, period])
 
   if (loading) {
     return (
@@ -261,9 +311,12 @@ const DashboardPage = () => {
               <ArrowLeft size={24} className="w-6 h-6" />
             </button>
             <div>
-              <h1 className="text-xl lg:text-3xl font-bold gradient-text">
-                📊 Дашбоард бота
-              </h1>
+              <div className="flex items-center gap-3">
+                <span className="text-3xl emoji">📊</span>
+                <h1 className="text-xl lg:text-3xl font-bold text-white">
+                  Дашбоард бота
+                </h1>
+              </div>
               <p className="text-sm lg:text-base text-white/70">
                 {botId}
               </p>
@@ -271,26 +324,9 @@ const DashboardPage = () => {
           </div>
           
           <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 lg:gap-4">
-            {/* Period Selector */}
-            <div className="flex items-center gap-2 bg-white/10 rounded-xl p-1">
-              {[7, 14, 30].map((days) => (
-                <button
-                  key={days}
-                  onClick={() => setPeriod(days)}
-                  className={`px-4 py-2 rounded-lg text-sm transition-all ${
-                    period === days
-                      ? 'bg-gradient-to-r from-emerald-400 to-blue-400 text-white'
-                      : 'text-white/70 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  {days}д
-                </button>
-              ))}
-            </div>
-            
             <button
               onClick={handleExport}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-sm w-full lg:w-auto"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-transparent hover:bg-white/10 rounded-xl transition-colors text-sm w-full lg:w-auto"
             >
               <Download size={20} />
               Экспорт
@@ -298,105 +334,279 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        {analytics && (
+        {analytics && detailedMetrics && (
           <>
-            {/* User Statistics */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-6 mb-6 lg:mb-8">
-              {/* Активные пользователи сегодня */}
-              <div className="glass-card relative p-4 lg:p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-green-400 to-emerald-400 flex items-center justify-center">
-                    <Activity size={24} className="text-white" />
-                  </div>
-                </div>
-                <div className="mb-2">
-                  <p className="text-white/60 text-sm uppercase tracking-wide mb-1">
-                    Активных сегодня
-                  </p>
-                  <p className="text-2xl font-bold text-white">
-                    {analytics.metrics.active_today?.toLocaleString('ru-RU') || '0'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Всего пользователей */}
-              <div className="glass-card relative p-4 lg:p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-400 to-cyan-400 flex items-center justify-center">
-                    <Users size={24} className="text-white" />
-                  </div>
-                </div>
-                <div className="mb-2">
-                  <p className="text-white/60 text-sm uppercase tracking-wide mb-1">
-                    Всего пользователей
-                  </p>
-                  <p className="text-2xl font-bold text-white">
-                    {analytics.metrics.total_users?.toLocaleString('ru-RU') || '0'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Новые пользователи */}
-              <div className="glass-card relative p-4 lg:p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 flex items-center justify-center">
-                    <Users size={24} className="text-white" />
-                  </div>
-                </div>
-                <div className="mb-2">
-                  <p className="text-white/60 text-sm uppercase tracking-wide mb-1">
-                    Новые пользователи
-                  </p>
-                  <p className="text-2xl font-bold text-white">
-                    {analytics.metrics.new_users?.toLocaleString('ru-RU') || '0'}
-                  </p>
-                </div>
-                <p className="text-white/50 text-sm">
-                  за {analytics.metrics.period_days || period} дней
-                </p>
-              </div>
-            </div>
-            
-            {/* User Growth Chart */}
-            <div className="mb-6 lg:mb-8">
-              <Suspense fallback={<div className="glass-card p-6"><LoadingSpinner /></div>}>
-              <UserGrowthChart data={analytics.user_growth || []} period={period} />
-              </Suspense>
-            </div>
-            
-            {/* Activity Feed */}
-            <div className="glass-card relative p-4 lg:p-6">
-              <h3 className="text-xl font-bold mb-4 gradient-text">
-                💸 Последние события
-              </h3>
+            {/* ============================================ */}
+            {/* ОБЩИЕ МЕТРИКИ (ЗА ВСЕ ВРЕМЯ) */}
+            {/* ============================================ */}
+            <div className="mb-16 lg:mb-20">
+              <SectionHeader
+                emoji="📈"
+                title="Общие метрики"
+                description="Статистика за весь период работы бота"
+                gradientFrom="#34d399"
+                gradientTo="#60a5fa"
+              />
               
-              <div className="space-y-3">
-                {events.length > 0 ? (
-                  events.map((event, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-4 bg-white/5 rounded-xl border-l-4 border-blue-400"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-white text-base mb-1 truncate">
-                          {event.title}
-                        </p>
-                        <p className="text-white/70 text-sm line-clamp-2">
-                          {event.description}
-                        </p>
+              <div className="glass-card relative p-4 lg:p-6">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 mb-6">
+                <MetricCard
+                  icon={Users}
+                  label="Всего пользователей"
+                  value={detailedMetrics.general_metrics?.total_users || 0}
+                  gradientFrom="#60a5fa"
+                  gradientTo="#22d3ee"
+                  bgGradientFrom="rgba(59, 130, 246, 0.2)"
+                  bgGradientTo="transparent"
+                />
+                
+                <div className="metric-card p-6 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-red-500/20 to-transparent rounded-full blur-2xl"></div>
+                  <div className="relative">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-red-400 to-pink-400 flex items-center justify-center">
+                        <Users size={20} className="text-white" />
                       </div>
-                      <div className="text-right ml-3">
-                        <p className="text-white/60 text-sm whitespace-nowrap">
-                          {getTimeAgo(event.created_at)}
-                        </p>
-                      </div>
+                      <p className="text-white/60 text-sm font-medium">Заблокировали бота</p>
                     </div>
+                    <p className="text-4xl font-bold text-red-400 mb-2">
+                      {detailedMetrics.general_metrics?.blocked_users?.toLocaleString('ru-RU') || '0'}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <div className="progress-bar flex-1">
+                        <div 
+                          className="progress-bar-fill bg-gradient-to-r from-red-400 to-pink-400"
+                          style={{ width: `${Math.min(detailedMetrics.general_metrics?.blocked_percentage || 0, 100)}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-white/50 text-sm font-medium">
+                        {detailedMetrics.general_metrics?.blocked_percentage?.toFixed(1) || '0'}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Пользователи по сегментам */}
+              {detailedMetrics.general_metrics?.segments && detailedMetrics.general_metrics.segments.length > 0 && (
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                      <div className="w-1 h-6 bg-gradient-to-b from-emerald-400 to-blue-400 rounded-full"></div>
+                      Пользователи по сегментам
+                    </h3>
+                    {/* Фильтр по сегментам */}
+                    <SegmentsFilter
+                      segments={detailedMetrics.general_metrics.segments}
+                      selectedSegments={selectedSegments}
+                      onSelectionChange={setSelectedSegments}
+                      label="Фильтр:"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Круговая диаграмма */}
+                    <div className="glass-card p-4 lg:p-6 relative overflow-hidden">
+                      <Suspense fallback={<div className="h-96 flex items-center justify-center"><LoadingSpinner /></div>}>
+                        <SegmentsPieChart 
+                          data={detailedMetrics.general_metrics.segments}
+                          selectedSegments={selectedSegments}
+                          totalUsers={detailedMetrics.general_metrics.total_users}
+                          isFirstLoad={shouldAnimateSegmentsChart}
+                        />
+                      </Suspense>
+                    </div>
+                    
+                    {/* Таблица */}
+                    <SegmentsTable segments={filteredSegments} />
+                  </div>
+                </div>
+              )}
+              
+              {/* Разбивка пользователей по стадиям воронки */}
+              {detailedMetrics.funnel_breakdown?.breakdown && detailedMetrics.funnel_breakdown.breakdown.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <span className="text-2xl emoji">🎯</span>
+                    <div className="w-1 h-6 bg-gradient-to-b from-purple-400 to-pink-400 rounded-full"></div>
+                    Разбивка пользователей по стадиям воронки
+                  </h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Таблица слева */}
+                    <FunnelTable breakdown={detailedMetrics.funnel_breakdown.breakdown} />
+                    
+                    {/* Круговая диаграмма справа */}
+                    <div className="glass-card p-4 lg:p-6 relative overflow-hidden">
+                      <Suspense fallback={<div className="h-96 flex items-center justify-center"><LoadingSpinner /></div>}>
+                        <FunnelPieChart 
+                          data={detailedMetrics.funnel_breakdown.breakdown}
+                          isFirstLoad={shouldAnimateFunnelChart}
+                        />
+                      </Suspense>
+                    </div>
+                  </div>
+                </div>
+              )}
+              </div>
+            </div>
+            
+            {/* ============================================ */}
+            {/* МЕТРИКИ ЗА ПЕРИОД И РОСТ ПОЛЬЗОВАТЕЛЕЙ */}
+            {/* ============================================ */}
+            <div className="mb-16 lg:mb-20">
+              <SectionHeader
+                emoji="📅"
+                title="Метрики за период"
+                description="Динамика изменений с сравнением с предыдущим периодом"
+                gradientFrom="#60a5fa"
+                gradientTo="#a78bfa"
+              />
+              
+              <div className="glass-card relative p-4 lg:p-6">
+              {/* Фильтры по времени и сегментам */}
+              <PeriodFilter
+                period={period}
+                tempPeriod={tempPeriod}
+                onPeriodChange={setTempPeriod}
+                selectedSegments={selectedSegmentsPeriod}
+                tempSelectedSegments={tempSelectedSegmentsPeriod}
+                onSegmentsChange={setTempSelectedSegmentsPeriod}
+                segments={detailedMetrics.general_metrics?.segments || []}
+                onApply={handleApplyFilters}
+                loading={loadingPeriodMetrics}
+              />
+              
+              {loadingPeriodMetrics ? (
+                <LoadingSpinnerPeriod />
+              ) : (
+                <div className="fade-in">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 mb-6">
+                {/* Новых пользователей */}
+                <div className="metric-card p-6 relative overflow-hidden animate-slide-up">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-500/20 to-transparent rounded-full blur-2xl"></div>
+                  <div className="relative">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-400 to-indigo-400 flex items-center justify-center">
+                        <Users size={20} className="text-white" />
+                      </div>
+                      <p className="text-white/60 text-sm font-medium">Новых пользователей</p>
+                    </div>
+                    <p className="text-4xl font-bold text-blue-400 mb-2">
+                      {detailedMetrics.period_metrics?.new_users?.count?.toLocaleString('ru-RU') || '0'}
+                    </p>
+                    {detailedMetrics.period_metrics?.new_users?.diff_percentage !== undefined && (
+                      <div className="flex items-center gap-2">
+                        <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${
+                          detailedMetrics.period_metrics.new_users.diff_percentage >= 0 
+                            ? 'bg-green-500/20 text-green-400' 
+                            : 'bg-red-500/20 text-red-400'
+                        }`}>
+                          {detailedMetrics.period_metrics.new_users.diff_percentage >= 0 ? '↑' : '↓'}
+                          {Math.abs(detailedMetrics.period_metrics.new_users.diff_percentage).toFixed(1)}%
+                        </div>
+                        <span className="text-white/50 text-xs">от предыдущего периода</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Активных пользователей за период */}
+                <div className="metric-card p-6 relative overflow-hidden slide-up">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-500/20 to-transparent rounded-full blur-2xl"></div>
+                  <div className="relative">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-purple-400 to-pink-400 flex items-center justify-center">
+                        <Activity size={20} className="text-white" />
+                      </div>
+                      <p className="text-white/60 text-sm font-medium">Активных за период</p>
+                    </div>
+                    <p className="text-4xl font-bold text-purple-400 mb-2">
+                      {detailedMetrics.period_metrics?.active_users?.count?.toLocaleString('ru-RU') || '0'}
+                    </p>
+                    {detailedMetrics.period_metrics?.active_users?.diff_percentage !== undefined && (
+                      <div className="flex items-center gap-2">
+                        <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${
+                          detailedMetrics.period_metrics.active_users.diff_percentage >= 0 
+                            ? 'bg-green-500/20 text-green-400' 
+                            : 'bg-red-500/20 text-red-400'
+                        }`}>
+                          {detailedMetrics.period_metrics.active_users.diff_percentage >= 0 ? '↑' : '↓'}
+                          {Math.abs(detailedMetrics.period_metrics.active_users.diff_percentage).toFixed(1)}%
+                        </div>
+                        <span className="text-white/50 text-xs">от предыдущего периода</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Активных сегодня */}
+                <div className="metric-card p-6 relative overflow-hidden slide-up">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-500/20 to-transparent rounded-full blur-2xl"></div>
+                  <div className="relative">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-green-400 to-emerald-400 flex items-center justify-center">
+                        <Activity size={20} className="text-white" />
+                      </div>
+                      <p className="text-white/60 text-sm font-medium">Активных сегодня</p>
+                    </div>
+                    <p className="text-4xl font-bold text-green-400 mb-2">
+                      {analytics.metrics.active_today?.toLocaleString('ru-RU') || '0'}
+                    </p>
+                    <p className="text-white/50 text-xs">пользователей сегодня</p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* График роста пользователей */}
+              <div className="mt-6 slide-up">
+                <Suspense fallback={<div className="h-96 flex items-center justify-center"><LoadingSpinner /></div>}>
+                  <UserGrowthChart data={detailedMetrics.user_growth_chart || []} period={period} />
+                </Suspense>
+              </div>
+              </div>
+              )}
+              </div>
+            </div>
+            
+            {/* Разделитель */}
+            {/* ============================================ */}
+            {/* ПОСЛЕДНИЕ СОБЫТИЯ */}
+            {/* ============================================ */}
+            <div className="mb-16 lg:mb-20">
+              <SectionHeader
+                emoji="💸"
+                title="Последние события"
+                description="Активность и важные события бота"
+                gradientFrom="#facc15"
+                gradientTo="#fb923c"
+              />
+              
+              <div className="glass-card relative p-4 lg:p-6">
+                <div className="space-y-3">
+                {events.length > 0 ? (
+                  events.slice(0, eventsLimit).map((event, index) => (
+                    <EventCard key={index} event={event} />
                   ))
                 ) : (
-                  <div className="text-center py-8 text-white/50 text-base">
-                    <p>Нет событий</p>
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
+                      <span className="text-3xl emoji">📭</span>
+                    </div>
+                    <p className="text-white/50 text-base font-medium">Нет событий</p>
                   </div>
                 )}
+                {/* Показываем кнопку если есть еще события для загрузки */}
+                {events.length >= eventsLimit && !allEventsLoaded && (
+                  <div className="flex justify-center mt-4">
+                    <button
+                      onClick={loadMoreEvents}
+                      className="px-6 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-sm font-medium"
+                    >
+                      Загрузить еще
+                    </button>
+                  </div>
+                )}
+              </div>
               </div>
             </div>
           </>

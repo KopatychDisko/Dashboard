@@ -23,6 +23,10 @@ class RequestTimeoutMiddleware(BaseHTTPMiddleware):
         request_id = getattr(request.state, "request_id", "unknown")
         timeout_seconds = settings.REQUEST_TIMEOUT_SECONDS
         
+        # Увеличиваем таймаут для аналитических запросов
+        if "/api/analytics/" in request.url.path:
+            timeout_seconds = 120  # 2 минуты для аналитики
+        
         try:
             # Устанавливаем таймаут на выполнение запроса
             response = await asyncio.wait_for(
