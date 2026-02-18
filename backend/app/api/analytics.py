@@ -189,6 +189,60 @@ async def get_detailed_analytics(
             detail="Ошибка получения детальной аналитики"
         )
 
+@router.get("/{bot_id}/detailed-metrics", response_model=Dict[str, Any])
+@cached(ttl=settings.RESPONSE_CACHE_TTL if settings.ENABLE_RESPONSE_CACHE else None, key_params=['bot_id', 'days'])
+async def get_detailed_metrics(
+    bot_id: str = Path(..., description="ID бота"),
+    days: int = Query(7, ge=1, le=365, description="Количество дней для анализа"),
+    current_user_id: int = Depends(verify_bot_access)
+) -> Dict[str, Any]:
+    """
+    Получение детальных метрик для маркетинга
+    
+    Returns:
+        Dict с общими метриками, метриками за период и разбивкой по воронке
+    """
+    try:
+        logger.info(f"📊 Запрос детальных метрик для бота {bot_id}, период: {days} дней")
+        
+        db_client = get_supabase_client(bot_id)
+        await db_client.initialize()
+        
+        # ОПТИМИЗАЦИЯ: Выполняем независимые запросы параллельно
+        logger.info(f"📈 Параллельная загрузка детальных метрик...")
+        from datetime import timedelta, timezone
+        end_date = datetime.now(timezone.utc)
+        start_date = end_date - timedelta(days=days)
+        
+        general_metrics, period_metrics, funnel_breakdown, chart_data = await asyncio.gather(
+            db_client.get_general_metrics(bot_id),
+            db_client.get_period_metrics(bot_id, days),
+            db_client.get_funnel_breakdown(bot_id),
+            db_client._get_chart_data(bot_id, start_date, end_date)
+        )
+        
+        # Формируем ответ
+        response = {
+            "bot_id": bot_id,
+            "period_days": days,
+            "general_metrics": general_metrics,
+            "period_metrics": period_metrics,
+            "funnel_breakdown": funnel_breakdown,
+            "user_growth_chart": chart_data,
+            "generated_at": datetime.now().isoformat()
+        }
+        
+        logger.info(f"✅ Детальные метрики для бота {bot_id} успешно получены")
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения детальных метрик для бота {bot_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Ошибка получения детальных метрик"
+        )
+
 @router.get("/{bot_id}/recent-events", response_model=Dict[str, Any])
 async def get_recent_events(
     bot_id: str = Path(..., description="ID бота"),

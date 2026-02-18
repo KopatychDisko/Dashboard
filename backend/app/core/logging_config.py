@@ -101,7 +101,15 @@ def setup_logging():
     # Определяем форматтер в зависимости от окружения
     if settings.ENVIRONMENT == "development":
         # В development используем обычный формат для читаемости
-        formatter = logging.Formatter(
+        # Используем кастомный форматтер, который безопасно обрабатывает отсутствующие поля
+        class SafeFormatter(logging.Formatter):
+            def format(self, record):
+                # Добавляем request_id по умолчанию, если его нет
+                if not hasattr(record, 'request_id'):
+                    record.request_id = 'N/A'
+                return super().format(record)
+        
+        formatter = SafeFormatter(
             '%(asctime)s - %(name)s - %(levelname)s - [%(request_id)s] - %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )
@@ -144,6 +152,8 @@ def setup_logging():
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("hpack").setLevel(logging.WARNING)  # Отключаем DEBUG логи от hpack
+    logging.getLogger("hpack.hpack").setLevel(logging.WARNING)  # Отключаем DEBUG логи от hpack.hpack
     
     # Логируем информацию о конфигурации
     logger = logging.getLogger(__name__)

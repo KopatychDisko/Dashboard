@@ -23,6 +23,7 @@ services:
       args:
         - VITE_API_URL=https://dshb.lemifar.ru/api
         - VITE_TELEGRAM_BOT_USERNAME=DashBoardMetricksBot
+        - VITE_AUTH_URL=https://dshb.lemifar.ru/bots
     ports:
       - "127.0.0.1:8080:80"
     volumes:

@@ -84,8 +84,11 @@ const LoginPage = () => {
       script.setAttribute('data-radius', '12')
       script.setAttribute('data-request-access', 'write')
       
-      // Всегда используем продакшен URL для редиректа
-      const authUrl = 'https://dshb.lemifar.ru/bots'
+      // Используем переменную окружения для auth URL
+      const authUrl = import.meta.env.VITE_AUTH_URL || 
+        (import.meta.env.DEV 
+          ? 'http://127.0.0.1/bots'  // Fallback для тестового окружения
+          : 'https://dshb.lemifar.ru/bots')  // Fallback для продакшена
       
       // Используем ТОЛЬКО redirect подход
       script.setAttribute('data-auth-url', authUrl)

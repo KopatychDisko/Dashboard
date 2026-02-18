@@ -36,7 +36,15 @@
     background: linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
     backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
+    border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+  }
+  
+  .glass-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(0, 212, 170, 0.15);
+    border-color: rgba(0, 212, 170, 0.3);
   }
   
   .glass-card::before {
@@ -45,9 +53,79 @@
     top: 0;
     left: 0;
     right: 0;
-    height: 3px;
+    height: 4px;
     background: linear-gradient(90deg, #00d4aa, #00c6fb);
-    border-radius: 20px 20px 0 0;
+    border-radius: 24px 24px 0 0;
+  }
+  
+  .metric-card {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    transition: all 0.3s ease;
+  }
+  
+  .metric-card:hover {
+    transform: translateY(-4px);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+    box-shadow: 0 8px 24px rgba(0, 212, 170, 0.2);
+  }
+  
+  .table-row {
+    transition: all 0.2s ease;
+  }
+  
+  .table-row:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    transform: translateX(4px);
+  }
+  
+  /* Убираем border-bottom у последней строки таблицы */
+  tbody tr:last-child {
+    border-bottom: none !important;
+  }
+  
+  tbody tr:last-child.table-row:hover {
+    border-bottom: none !important;
+  }
+  
+  .progress-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+    position: relative;
+  }
+  
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00d4aa, #00c6fb);
+    border-radius: 3px;
+    transition: width 0.6s ease;
+  }
+  
+  .section-divider {
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(0, 212, 170, 0.3), rgba(0, 198, 251, 0.3), transparent);
+    margin: 3rem 0;
+    border-radius: 2px;
+  }
+  
+  .section-header {
+    position: relative;
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .section-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
   }
   
   /* Animation Classes */
@@ -148,6 +226,25 @@
     border: none !important;
     outline: none !important;
     box-shadow: none !important;
+  }
+
+  /* Исправление эмодзи - убираем синий цвет */
+  .emoji,
+  span:has(> .emoji),
+  h1:has(.emoji),
+  h2:has(.emoji),
+  h3:has(.emoji) {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+  
+  /* Убираем стили ссылок для эмодзи */
+  .emoji {
+    display: inline-block;
+    font-style: normal;
+    font-variant: normal;
+    text-rendering: auto;
+    -webkit-font-smoothing: antialiased;
   }
 
   /* Responsive Design */

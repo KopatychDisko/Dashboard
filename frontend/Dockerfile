@@ -29,10 +29,12 @@ RUN rm -rf /app/public/assets && mkdir -p /app/dist
 # Аргументы для сборки
 ARG VITE_API_URL=http://localhost:8000/api
 ARG VITE_TELEGRAM_BOT_USERNAME=DashBoardMetricksBot
+ARG VITE_AUTH_URL=https://dshb.lemifar.ru/bots
 
 # Установка переменных окружения для сборки
 ENV VITE_API_URL=$VITE_API_URL \
     VITE_TELEGRAM_BOT_USERNAME=$VITE_TELEGRAM_BOT_USERNAME \
+    VITE_AUTH_URL=$VITE_AUTH_URL \
     NODE_ENV=production \
     NODE_OPTIONS="--max-old-space-size=8192"
 

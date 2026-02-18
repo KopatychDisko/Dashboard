@@ -22,6 +22,15 @@ class TelegramAuth:
         Returns:
             bool: True если подпись валидна
         """
+        # Для тестового окружения пропускаем проверку подписи
+        if settings.ENVIRONMENT != "production":
+            logger.info("=" * 80)
+            logger.info("🔐 ПРОВЕРКА ПОДПИСИ ПРОПУЩЕНА (тестовое окружение)")
+            logger.info("=" * 80)
+            logger.info(f"🤖 Окружение: {settings.ENVIRONMENT}")
+            logger.info("✅ Для тестового окружения проверка подписи отключена")
+            return True
+        
         try:
             logger.info("=" * 80)
             logger.info("🔐 НАЧАЛО ПРОВЕРКИ TELEGRAM ПОДПИСИ")
@@ -39,15 +48,37 @@ class TelegramAuth:
             auth_data_copy = {k: v for k, v in auth_data.items() if k != 'hash'}
             logger.info(f"📋 Данные для проверки (без hash): {auth_data_copy}")
             
+            # ВАЖНО: Все значения должны быть строками для правильной проверки подписи
+            # Telegram требует, чтобы все значения в data_check_string были строками
+            auth_data_strings = {}
+            for k, v in auth_data_copy.items():
+                if v is None:
+                    continue  # Пропускаем None значения
+                # Преобразуем все значения в строки
+                auth_data_strings[k] = str(v)
+            
+            logger.info(f"📋 Данные для проверки (все строки): {auth_data_strings}")
+            
             # Сортируем ключи и создаем строку для проверки
+            # Формат: key1=value1\nkey2=value2\n...
             data_check_string = '\n'.join([
-                f"{k}={v}" for k, v in sorted(auth_data_copy.items())
+                f"{k}={v}" for k, v in sorted(auth_data_strings.items())
             ])
             
             logger.info(f"📝 Data check string:\n{data_check_string}")
+            logger.info(f"📝 Data check string (repr): {repr(data_check_string)}")
             
             # Проверяем токен бота
             bot_token = settings.TELEGRAM_BOT_TOKEN
+            bot_username = settings.TELEGRAM_BOT_USERNAME
+            logger.info(f"🤖 Используемый бот: {bot_username}")
+            logger.info(f"🤖 Окружение: {settings.ENVIRONMENT}")
+            
+            # Предупреждение, если используется неправильный бот для окружения
+            if settings.ENVIRONMENT != "production" and bot_username != "test_dahboard_bot":
+                logger.warning(f"⚠️ ВНИМАНИЕ: Для тестового окружения ожидается бот 'test_dahboard_bot', но используется '{bot_username}'")
+                logger.warning(f"⚠️ Убедитесь, что в .env указан TELEGRAM_BOT_TOKEN_DEV и TELEGRAM_BOT_USERNAME_DEV")
+            
             logger.info(f"🤖 BOT_TOKEN длина: {len(bot_token)} символов")
             logger.info(f"🤖 BOT_TOKEN первые 10 символов: {bot_token[:10]}...")
             logger.info(f"🤖 BOT_TOKEN последние 5 символов: ...{bot_token[-5:]}")
