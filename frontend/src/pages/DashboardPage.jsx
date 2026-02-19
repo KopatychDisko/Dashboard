@@ -11,9 +11,12 @@ import SectionHeader from '../components/dashboard/SectionHeader'
 import SegmentsTable from '../components/dashboard/SegmentsTable'
 import FunnelTable from '../components/dashboard/FunnelTable'
 import PeriodFilter from '../components/dashboard/PeriodFilter'
+import FunnelFilter from '../components/dashboard/FunnelFilter'
 import EventCard from '../components/dashboard/EventCard'
 import LoadingSpinnerPeriod from '../components/dashboard/LoadingSpinnerPeriod'
 import { convertAnalyticsToCSV, downloadCSV } from '../utils/csvExport'
+import { REFRESH_INTERVAL, PERIOD_OPTIONS, DEFAULT_PERIOD, DEFAULT_EVENTS_LIMIT, EVENTS_INCREMENT } from '../constants/dashboard'
+import { useFunnelFilter } from '../hooks/useFunnelFilter'
 
 // ОПТИМИЗАЦИЯ: Lazy loading для тяжелых компонентов графиков
 const MetricsGrid = React.lazy(() => import('../components/dashboard/MetricsGrid'))
@@ -31,24 +34,30 @@ const DashboardPage = () => {
   const [analytics, setAnalytics] = useState(null)
   const [detailedMetrics, setDetailedMetrics] = useState(null)
   const [events, setEvents] = useState([])
-  const [eventsLimit, setEventsLimit] = useState(5) // Лимит отображаемых событий
+  const [eventsLimit, setEventsLimit] = useState(DEFAULT_EVENTS_LIMIT) // Лимит отображаемых событий
   const [allEventsLoaded, setAllEventsLoaded] = useState(false) // Все события загружены
+  const [loadingMoreEvents, setLoadingMoreEvents] = useState(false) // Загрузка дополнительных событий
   const [loading, setLoading] = useState(true)
   const [loadingPeriodMetrics, setLoadingPeriodMetrics] = useState(false) // Загрузка только метрик за период
   const [selectedSegments, setSelectedSegments] = useState([]) // Выбранные сегменты для фильтрации общих метрик
   const [selectedSegmentsPeriod, setSelectedSegmentsPeriod] = useState([]) // Выбранные сегменты для фильтрации метрик за период
-  const [tempPeriod, setTempPeriod] = useState(7) // Временное значение периода до применения
+  const [tempPeriod, setTempPeriod] = useState(DEFAULT_PERIOD) // Временное значение периода до применения
   const [tempSelectedSegmentsPeriod, setTempSelectedSegmentsPeriod] = useState([]) // Временное значение сегментов до применения
+  
   const [error, setError] = useState('')
-  const [period, setPeriod] = useState(7)
+  const [period, setPeriod] = useState(DEFAULT_PERIOD)
   const [lastUpdate, setLastUpdate] = useState(null)
+  
+  // Хук для управления фильтром воронки (после объявления error и period)
+  const funnelFilter = useFunnelFilter(
+    botId, 
+    period, 
+    detailedMetrics ? setDetailedMetrics : null, 
+    setError
+  )
 
   // Ref для хранения интервала polling
   const pollingIntervalRef = useRef(null)
-  const REFRESH_INTERVAL = 30000 // 30 секунд
-
-  // Константы для периодов
-  const PERIOD_OPTIONS = [1, 7, 14, 30]
 
   // Мемоизация фильтрованных сегментов
   const filteredSegments = useMemo(() => {
@@ -67,7 +76,7 @@ const DashboardPage = () => {
         if (periodOnly) {
           setLoadingPeriodMetrics(true)
         } else {
-          setLoading(true)
+      setLoading(true)
         }
       }
       setError('')
@@ -76,7 +85,7 @@ const DashboardPage = () => {
         // Загружаем только метрики за период
         const [dashboardResponse, detailedResponse] = await Promise.all([
           analyticsAPI.getDashboardAnalytics(botId, currentPeriod),
-          analyticsAPI.getDetailedMetrics(botId, currentPeriod)
+          analyticsAPI.getDetailedMetrics(botId, currentPeriod, funnelFilter.selectedSegments.length > 0 ? funnelFilter.selectedSegments : null)
         ])
         
         setAnalytics(dashboardResponse.data)
@@ -92,8 +101,8 @@ const DashboardPage = () => {
         // Загружаем все метрики
         const [dashboardResponse, detailedResponse, eventsResponse] = await Promise.all([
           analyticsAPI.getDashboardAnalytics(botId, currentPeriod),
-          analyticsAPI.getDetailedMetrics(botId, currentPeriod),
-          analyticsAPI.getRecentEvents(botId, 5)
+          analyticsAPI.getDetailedMetrics(botId, currentPeriod, funnelFilter.selectedSegments.length > 0 ? funnelFilter.selectedSegments : null),
+          analyticsAPI.getRecentEvents(botId, DEFAULT_EVENTS_LIMIT)
         ])
         
         setAnalytics(dashboardResponse.data)
@@ -112,15 +121,15 @@ const DashboardPage = () => {
           setDetailedMetrics(detailedResponse.data)
         }
         
-        if (eventsResponse.data.success) {
+      if (eventsResponse.data.success) {
           const loadedEvents = eventsResponse.data.events || []
           setEvents(loadedEvents)
           // Если загружено меньше чем запрошено (5), значит все события загружены
           // Если загружено ровно 5, возможно есть еще - кнопка покажется
-          setAllEventsLoaded(loadedEvents.length < 5)
+          setAllEventsLoaded(loadedEvents.length < DEFAULT_EVENTS_LIMIT)
           // Сбрасываем лимит только при обычной загрузке (не при polling), чтобы сохранить раскрытие событий
           if (!silent) {
-            setEventsLimit(5)
+            setEventsLimit(DEFAULT_EVENTS_LIMIT)
           }
         }
       }
@@ -137,30 +146,36 @@ const DashboardPage = () => {
       
       // Логируем только в development
       if (import.meta.env.DEV) {
-        console.error('Ошибка загрузки аналитики:', err)
+      console.error('Ошибка загрузки аналитики:', err)
       }
     } finally {
       if (!silent) {
         if (periodOnly) {
           setLoadingPeriodMetrics(false)
         } else {
-          setLoading(false)
+      setLoading(false)
         }
-      }
     }
+  }
   }, [botId, period])
 
-  // Обработчик применения фильтров
+  // Обработчик применения фильтров для метрик за период
   const handleApplyFilters = useCallback(() => {
     setPeriod(tempPeriod)
     setSelectedSegmentsPeriod(tempSelectedSegmentsPeriod)
     // Загрузка произойдет в useEffect ниже
   }, [tempPeriod, tempSelectedSegmentsPeriod])
+  
+  // Мемоизация обработчика навигации назад
+  const handleBackToBots = useCallback(() => {
+    navigate('/bots')
+  }, [navigate])
 
   // Загрузка дополнительных событий
   const loadMoreEvents = useCallback(async () => {
     try {
-      const newLimit = eventsLimit + 5
+      setLoadingMoreEvents(true)
+      const newLimit = eventsLimit + EVENTS_INCREMENT
       const previousEventsCount = events.length
       const response = await analyticsAPI.getRecentEvents(botId, newLimit)
       if (response.data.success) {
@@ -174,6 +189,8 @@ const DashboardPage = () => {
       }
     } catch (err) {
       console.error('Ошибка загрузки дополнительных событий:', err)
+    } finally {
+      setLoadingMoreEvents(false)
     }
   }, [botId, eventsLimit, events.length])
 
@@ -198,13 +215,14 @@ const DashboardPage = () => {
 
   useEffect(() => {
     // При смене бота загружаем все метрики и синхронизируем временные значения
-    setTempPeriod(7)
+    setTempPeriod(DEFAULT_PERIOD)
     setTempSelectedSegmentsPeriod([])
-    setPeriod(7)
+    setPeriod(DEFAULT_PERIOD)
     setSelectedSegmentsPeriod([])
-    setEventsLimit(5) // Сбрасываем лимит событий
+    funnelFilter.resetFilters() // Сбрасываем фильтр сегментов воронки
+    setEventsLimit(DEFAULT_EVENTS_LIMIT) // Сбрасываем лимит событий
     setAllEventsLoaded(false) // Сбрасываем флаг загрузки всех событий
-    currentPeriodRef.current = 7 // Обновляем ref
+    currentPeriodRef.current = DEFAULT_PERIOD // Обновляем ref
     loadAnalytics(false, false)
 
     // Очистка предыдущего интервала если есть
@@ -244,8 +262,15 @@ const DashboardPage = () => {
         pollingIntervalRef.current = null
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
+  }
   }, [botId])
+
+  // Перезагрузка воронки при изменении фильтра сегментов
+  useEffect(() => {
+    if (detailedMetrics && detailedMetrics.funnel_breakdown) {
+      loadFunnelBreakdown()
+    }
+  }, [selectedSegmentsFunnel, loadFunnelBreakdown])
 
   const handleExport = useCallback(async () => {
     try {
@@ -256,7 +281,7 @@ const DashboardPage = () => {
       const errorMessage = err.processedError?.message || 'Не удалось экспортировать данные'
       setError(errorMessage)
       if (import.meta.env.DEV) {
-        console.error('Ошибка экспорта:', err)
+      console.error('Ошибка экспорта:', err)
       }
     }
   }, [botId, period])
@@ -315,7 +340,7 @@ const DashboardPage = () => {
                 <span className="text-3xl emoji">📊</span>
                 <h1 className="text-xl lg:text-3xl font-bold text-white">
                   Дашбоард бота
-                </h1>
+              </h1>
               </div>
               <p className="text-sm lg:text-base text-white/70">
                 {botId}
@@ -387,7 +412,7 @@ const DashboardPage = () => {
                   </div>
                 </div>
               </div>
-              
+
               {/* Пользователи по сегментам */}
               {detailedMetrics.general_metrics?.segments && detailedMetrics.general_metrics.segments.length > 0 && (
                 <div className="mt-6">
@@ -426,12 +451,32 @@ const DashboardPage = () => {
               {/* Разбивка пользователей по стадиям воронки */}
               {detailedMetrics.funnel_breakdown?.breakdown && detailedMetrics.funnel_breakdown.breakdown.length > 0 && (
                 <div className="mt-6">
-                  <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    <span className="text-2xl emoji">🎯</span>
-                    <div className="w-1 h-6 bg-gradient-to-b from-purple-400 to-pink-400 rounded-full"></div>
-                    Разбивка пользователей по стадиям воронки
-                  </h3>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                      <span className="text-2xl emoji">🎯</span>
+                      <div className="w-1 h-6 bg-gradient-to-b from-purple-400 to-pink-400 rounded-full"></div>
+                      Разбивка пользователей по стадиям воронки
+                    </h3>
+                    {/* Фильтр по сегментам для воронки с кнопкой применения */}
+                    <FunnelFilter
+                      segments={detailedMetrics.general_metrics?.segments || []}
+                      selectedSegments={funnelFilter.selectedSegments}
+                      tempSelectedSegments={funnelFilter.tempSelectedSegments}
+                      onSegmentsChange={funnelFilter.setTempSelectedSegments}
+                      onApply={funnelFilter.handleApplyFilters}
+                      loading={funnelFilter.loading}
+                    />
+                  </div>
+                  {funnelFilter.loading ? (
+                    <div className="flex flex-col items-center justify-center py-20 fade-in">
+                      <div className="relative w-16 h-16 mb-4">
+                        <div className="absolute inset-0 border-4 border-white/20 rounded-full"></div>
+                        <div className="absolute inset-0 border-4 border-transparent border-t-purple-400 rounded-full animate-spin"></div>
+                      </div>
+                      <p className="text-white/70 text-sm animate-pulse">Загрузка воронки...</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 fade-in">
                     {/* Таблица слева */}
                     <FunnelTable breakdown={detailedMetrics.funnel_breakdown.breakdown} />
                     
@@ -445,6 +490,7 @@ const DashboardPage = () => {
                       </Suspense>
                     </div>
                   </div>
+                  )}
                 </div>
               )}
               </div>
@@ -494,19 +540,6 @@ const DashboardPage = () => {
                     <p className="text-4xl font-bold text-blue-400 mb-2">
                       {detailedMetrics.period_metrics?.new_users?.count?.toLocaleString('ru-RU') || '0'}
                     </p>
-                    {detailedMetrics.period_metrics?.new_users?.diff_percentage !== undefined && (
-                      <div className="flex items-center gap-2">
-                        <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${
-                          detailedMetrics.period_metrics.new_users.diff_percentage >= 0 
-                            ? 'bg-green-500/20 text-green-400' 
-                            : 'bg-red-500/20 text-red-400'
-                        }`}>
-                          {detailedMetrics.period_metrics.new_users.diff_percentage >= 0 ? '↑' : '↓'}
-                          {Math.abs(detailedMetrics.period_metrics.new_users.diff_percentage).toFixed(1)}%
-                        </div>
-                        <span className="text-white/50 text-xs">от предыдущего периода</span>
-                      </div>
-                    )}
                   </div>
                 </div>
                 
@@ -523,19 +556,6 @@ const DashboardPage = () => {
                     <p className="text-4xl font-bold text-purple-400 mb-2">
                       {detailedMetrics.period_metrics?.active_users?.count?.toLocaleString('ru-RU') || '0'}
                     </p>
-                    {detailedMetrics.period_metrics?.active_users?.diff_percentage !== undefined && (
-                      <div className="flex items-center gap-2">
-                        <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${
-                          detailedMetrics.period_metrics.active_users.diff_percentage >= 0 
-                            ? 'bg-green-500/20 text-green-400' 
-                            : 'bg-red-500/20 text-red-400'
-                        }`}>
-                          {detailedMetrics.period_metrics.active_users.diff_percentage >= 0 ? '↑' : '↓'}
-                          {Math.abs(detailedMetrics.period_metrics.active_users.diff_percentage).toFixed(1)}%
-                        </div>
-                        <span className="text-white/50 text-xs">от предыдущего периода</span>
-                      </div>
-                    )}
                   </div>
                 </div>
                 
@@ -551,7 +571,7 @@ const DashboardPage = () => {
                     </div>
                     <p className="text-4xl font-bold text-green-400 mb-2">
                       {analytics.metrics.active_today?.toLocaleString('ru-RU') || '0'}
-                    </p>
+                  </p>
                     <p className="text-white/50 text-xs">пользователей сегодня</p>
                   </div>
                 </div>
@@ -560,7 +580,11 @@ const DashboardPage = () => {
               {/* График роста пользователей */}
               <div className="mt-6 slide-up">
                 <Suspense fallback={<div className="h-96 flex items-center justify-center"><LoadingSpinner /></div>}>
-                  <UserGrowthChart data={detailedMetrics.user_growth_chart || []} period={period} />
+                  <UserGrowthChart 
+                    data={detailedMetrics.user_growth_chart || []} 
+                    period={period}
+                    uniqueActiveUsersPeriod={detailedMetrics.unique_active_users_period}
+                  />
                 </Suspense>
               </div>
               </div>
@@ -581,8 +605,8 @@ const DashboardPage = () => {
                 gradientTo="#fb923c"
               />
               
-              <div className="glass-card relative p-4 lg:p-6">
-                <div className="space-y-3">
+            <div className="glass-card relative p-4 lg:p-6">
+              <div className="space-y-3">
                 {events.length > 0 ? (
                   events.slice(0, eventsLimit).map((event, index) => (
                     <EventCard key={index} event={event} />
@@ -595,15 +619,21 @@ const DashboardPage = () => {
                     <p className="text-white/50 text-base font-medium">Нет событий</p>
                   </div>
                 )}
-                {/* Показываем кнопку если есть еще события для загрузки */}
+                {/* Показываем кнопку или спиннер если есть еще события для загрузки */}
                 {events.length >= eventsLimit && !allEventsLoaded && (
                   <div className="flex justify-center mt-4">
-                    <button
-                      onClick={loadMoreEvents}
-                      className="px-6 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-sm font-medium"
-                    >
-                      Загрузить еще
-                    </button>
+                    {loadingMoreEvents ? (
+                      <div className="flex items-center justify-center px-6 py-2">
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={loadMoreEvents}
+                        className="px-6 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-sm font-medium"
+                      >
+                        Загрузить еще
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

@@ -134,28 +134,17 @@ class SupabaseClient:
     async def get_user_bots(self, telegram_id: int) -> List[str]:
         """Получает список ботов, к которым пользователь имеет доступ"""
         try:
-            # Получаем уникальные bot_id для пользователя из разных таблиц
+            # ОПТИМИЗАЦИЯ: Один запрос вместо двух одинаковых
+            # Получаем уникальные bot_id для пользователя из sales_admins
+            response = self.client.table('sales_admins').select('bot_id').eq(
+                'telegram_id', telegram_id
+            ).execute()
+            
             bots = set()
-            
-            # Проверяем в sales_users
-            users_response = self.client.table('sales_admins').select('bot_id').eq(
-                'telegram_id', telegram_id
-            ).execute()
-            
-            if users_response.data:
-                for user in users_response.data:
-                    if user.get('bot_id'):
-                        bots.add(user['bot_id'])
-            
-            # Проверяем в sales_admins
-            admins_response = self.client.table('sales_admins').select('bot_id').eq(
-                'telegram_id', telegram_id
-            ).execute()
-            
-            if admins_response.data:
-                for admin in admins_response.data:
-                    if admin.get('bot_id'):
-                        bots.add(admin['bot_id'])
+            if response.data:
+                for item in response.data:
+                    if item.get('bot_id'):
+                        bots.add(item['bot_id'])
             
             logger.info(f"Найдено {len(bots)} ботов для пользователя {telegram_id}: {list(bots)}")
             return list(bots)
@@ -230,8 +219,9 @@ class SupabaseClient:
                 return real_users_response.data or []
             
             async def get_sessions():
+                # ОПТИМИЗАЦИЯ: Выбираем только нужные поля (current_stage не используется)
                 sessions_query = self.client.table('sales_chat_sessions').select(
-                    'id', 'user_id', 'current_stage', 'created_at'
+                    'id', 'user_id', 'created_at'
                 ).eq('bot_id', bot_id).gte('created_at', cutoff_date.isoformat())
                 sessions_response = sessions_query.execute()
                 return sessions_response.data or []
@@ -266,23 +256,60 @@ class SupabaseClient:
                             continue
             
             # Активные пользователи сегодня
+            # ВАЖНО: Получаем ВСЕ сессии бота (без фильтра по дате создания),
+            # потому что пользователь мог создать сессию давно, но написать сообщение сегодня
             logger.info(f"🔍 Подсчет активных пользователей за сегодня ({today})")
             active_today = 0
-            if session_ids:
-                # Ищем сообщения от пользователей (role='user') сегодня в этих сессиях
-                messages_query = self.client.table('sales_messages').select(
-                    'session_id'
-                ).in_('session_id', session_ids).eq('role', 'user').gte(
-                    'created_at', today.isoformat()
-                )
+            
+            # Получаем все сессии бота для подсчета активных сегодня
+            all_sessions_today_query = self.client.table('sales_chat_sessions').select('id,user_id')
+            all_sessions_today_query = all_sessions_today_query.eq('bot_id', bot_id)
+            all_sessions_today_response = all_sessions_today_query.execute()
+            all_sessions_today = all_sessions_today_response.data or []
+            all_session_ids_today = [s['id'] for s in all_sessions_today if s.get('id')]
+            
+            if all_session_ids_today:
+                # Ищем сообщения от пользователей (role='user') сегодня во ВСЕХ сессиях бота
+                # Фильтруем только по дате сообщения, а не по дате создания сессии
+                today_start = datetime.combine(today, datetime.min.time()).replace(tzinfo=timezone.utc)
+                today_end = datetime.combine(today, datetime.max.time()).replace(tzinfo=timezone.utc)
+                
+                messages_query = self.client.table('sales_messages').select('session_id')
+                messages_query = messages_query.in_('session_id', all_session_ids_today)
+                messages_query = messages_query.eq('role', 'user')
+                messages_query = messages_query.gte('created_at', today_start.isoformat())
+                messages_query = messages_query.lte('created_at', today_end.isoformat())
+                
                 messages_response = messages_query.execute()
+                active_messages_today = messages_response.data or []
                 
-                # Считаем уникальные session_id (один пользователь = одна сессия)
-                unique_sessions = set(msg['session_id'] for msg in (messages_response.data or []))
-                active_today = len(unique_sessions)
+                # ВАЖНО: Считаем уникальные user_id, а не session_id!
+                # Один пользователь может иметь несколько сессий, но это все равно один активный пользователь
+                active_session_ids_today = {msg['session_id'] for msg in active_messages_today}
                 
-                logger.info(f"💬 Найдено {len(messages_response.data or [])} сообщений от пользователей сегодня")
-                logger.info(f"✅ Активных пользователей сегодня: {active_today}")
+                # Создаем маппинг session_id -> user_id из всех сессий бота
+                session_to_user_today = {
+                    str(s['id']): s.get('user_id') 
+                    for s in all_sessions_today 
+                    if s.get('id') and s.get('user_id')
+                }
+                
+                # Получаем уникальные user_id из активных сессий
+                active_user_ids_today = set()
+                for session_id in active_session_ids_today:
+                    user_id = session_to_user_today.get(str(session_id))
+                    if user_id:
+                        # Проверяем, что user_id есть в списке реальных пользователей (не тестовые)
+                        if str(user_id) in real_user_ids_set:
+                            active_user_ids_today.add(str(user_id))
+                
+                active_today = len(active_user_ids_today)
+                
+                logger.info(
+                    f"💬 Найдено {len(active_messages_today)} сообщений от пользователей сегодня, "
+                    f"уникальных активных сессий = {len(active_session_ids_today)}, "
+                    f"уникальных активных пользователей (user_id) = {active_today}"
+                )
             else:
                 logger.warning(f"⚠️ Нет сессий для бота {bot_id}")
             
@@ -318,9 +345,9 @@ class SupabaseClient:
         try:
             cutoff_date = datetime.now() - timedelta(days=days)
             
-            # Получаем сессии с этапами
+            # ОПТИМИЗАЦИЯ: Выбираем только нужные поля
             sessions_query = self.client.table('sales_chat_sessions').select(
-                'id', 'user_id', 'current_stage', 'lead_quality_score'
+                'id', 'user_id', 'current_stage'
             ).eq('bot_id', bot_id).gte('created_at', cutoff_date.isoformat())
             sessions_response = sessions_query.execute()
             sessions = sessions_response.data if sessions_response.data else []
@@ -418,24 +445,23 @@ class SupabaseClient:
                     return []
             
             async def get_sessions_and_messages():
-                # Получаем сессии за период (без ограничений)
+                # ВАЖНО: Получаем ВСЕ сессии бота (без фильтра по дате создания),
+                # потому что пользователь мог создать сессию ДО периода, но писать сообщения В периоде.
+                # Фильтрация по дате применяется только к сообщениям.
                 sessions_query = self.client.table('sales_chat_sessions').select('id,user_id')
                 if bot_id:
                     sessions_query = sessions_query.eq('bot_id', bot_id)
-                sessions_query = sessions_query.gte('created_at', start_date.isoformat()).lte(
-                    'created_at', end_date.isoformat()
-                )
                 
                 try:
                     sessions_response = sessions_query.execute()
                     sessions = sessions_response.data or []
                     session_ids = [s['id'] for s in sessions if s.get('id')]
                     
-                    # Получаем сообщения только если есть сессии (без ограничений)
+                    # Получаем сообщения за период только если есть сессии
                     active_messages = []
                     if session_ids:
-                        # ВАЖНО: Получаем сообщения только из сессий этого бота
                         # Сессии уже отфильтрованы по bot_id, поэтому сообщения тоже будут правильными
+                        # Дата фильтруется только по сообщениям — это корректно отражает активность за день
                         messages_query = self.client.table('sales_messages').select('session_id,created_at').in_(
                             'session_id', session_ids
                         ).eq('role', 'user').gte('created_at', start_date.isoformat()).lte(
@@ -463,29 +489,43 @@ class SupabaseClient:
             # ВАЖНО: Приводим user_id к строке для консистентности
             user_ids_from_sessions = {str(s.get('user_id')) for s in sessions if s.get('user_id')}
             
+            # ОПТИМИЗАЦИЯ: Фильтруем тестовых пользователей только если есть user_id из сессий
+            # Используем оптимизированный подход: если user_id много, получаем всех пользователей бота
+            # Если мало - используем .in_() для эффективного запроса
+            real_user_ids = set()
             if user_ids_from_sessions:
-                # Получаем всех реальных пользователей этого бота (исключая тестовых по first_name)
-                real_users_query = self.client.table('sales_users').select('telegram_id')
-                if bot_id:
-                    real_users_query = real_users_query.eq('bot_id', bot_id)
-                real_users_query = real_users_query.not_.like('first_name', 'Test%')
-                try:
-                    real_users_response = real_users_query.execute()
-                    # Приводим telegram_id к строке для консистентности
-                    real_user_ids = {str(u['telegram_id']) for u in (real_users_response.data or [])}
-                    # Оставляем только тех, кто есть в сессиях И является пользователем этого бота
-                    real_user_ids = user_ids_from_sessions & real_user_ids
-                    
-                    logger.info(
-                        f"📊 График для бота {bot_id}: "
-                        f"user_id из сессий={len(user_ids_from_sessions)}, "
-                        f"реальных пользователей бота={len(real_user_ids)}"
-                    )
-                except Exception as e:
-                    logger.warning(f"Ошибка фильтрации тестовых пользователей: {e}")
-                    real_user_ids = user_ids_from_sessions
-            else:
-                real_user_ids = set()
+                if len(user_ids_from_sessions) > 1000:
+                    # Если слишком много user_id, получаем всех пользователей бота и делаем пересечение
+                    real_users_query = self.client.table('sales_users').select('telegram_id')
+                    if bot_id:
+                        real_users_query = real_users_query.eq('bot_id', bot_id)
+                    real_users_query = real_users_query.not_.like('first_name', 'Test%')
+                    try:
+                        real_users_response = real_users_query.execute()
+                        real_user_ids_all = {str(u['telegram_id']) for u in (real_users_response.data or [])}
+                        real_user_ids = user_ids_from_sessions & real_user_ids_all
+                    except Exception as e:
+                        logger.warning(f"Ошибка фильтрации тестовых пользователей: {e}")
+                        real_user_ids = user_ids_from_sessions
+                else:
+                    # ОПТИМИЗАЦИЯ: Используем .in_() для эффективного запроса только нужных пользователей
+                    real_users_query = self.client.table('sales_users').select('telegram_id')
+                    if bot_id:
+                        real_users_query = real_users_query.eq('bot_id', bot_id)
+                    real_users_query = real_users_query.not_.like('first_name', 'Test%')
+                    real_users_query = real_users_query.in_('telegram_id', list(user_ids_from_sessions))
+                    try:
+                        real_users_response = real_users_query.execute()
+                        real_user_ids = {str(u['telegram_id']) for u in (real_users_response.data or [])}
+                    except Exception as e:
+                        logger.warning(f"Ошибка фильтрации тестовых пользователей: {e}")
+                        real_user_ids = user_ids_from_sessions
+                
+                logger.info(
+                    f"📊 График для бота {bot_id}: "
+                    f"user_id из сессий={len(user_ids_from_sessions)}, "
+                    f"реальных пользователей бота={len(real_user_ids)}"
+                )
             
             # Группируем новых пользователей по дням
             daily_new = {}
@@ -557,11 +597,20 @@ class SupabaseClient:
             total_active_chart = sum(item['active_users'] for item in chart_data)
             max_active_chart = max((item['active_users'] for item in chart_data), default=0)
             
+            # Вычисляем уникальных активных пользователей за весь период
+            unique_active_users_period = 0
+            if active_messages:
+                total_active_users_unique = set()
+                for users_set in daily_active.values():
+                    total_active_users_unique.update(users_set)
+                unique_active_users_period = len(total_active_users_unique)
+            
             logger.info(
                 f"📊 Итоговые данные графика для бота {bot_id}: "
                 f"дней={len(chart_data)}, "
                 f"всего новых={total_new_chart}, "
-                f"всего активных={total_active_chart}, "
+                f"всего активных (сумма по дням)={total_active_chart}, "
+                f"уникальных активных за период={unique_active_users_period}, "
                 f"максимум активных за день={max_active_chart}, "
                 f"дней с активными={sum(1 for item in chart_data if item['active_users'] > 0)}, "
                 f"пример первых 3 дней={chart_data[:3] if len(chart_data) >= 3 else chart_data}"
@@ -576,7 +625,11 @@ class SupabaseClient:
     async def get_general_metrics(self, bot_id: str) -> Dict[str, Any]:
         """Получает общие метрики за все время"""
         try:
+            logger.info(f"📊 Получение общих метрик для бота {bot_id}")
+            
             # Всего пользователей
+            # ВАЖНО: Фильтр по first_name применяется на уровне БД, даже если поле не в SELECT
+            # Это эффективно, так как WHERE выполняется до SELECT
             users_query = self.client.table('sales_users').select(
                 'telegram_id', 'is_active', 'segments'
             )
@@ -585,41 +638,86 @@ class SupabaseClient:
             if bot_id:
                 users_query = users_query.eq('bot_id', bot_id)
             
-            # Исключаем тестовых пользователей
+            # Исключаем тестовых пользователей (фильтр применяется на уровне БД)
             users_query = users_query.not_.like('first_name', 'Test%')
             
+            # Выполняем запрос
             users_response = users_query.execute()
-            all_users = users_response.data or []
+            all_users_raw = users_response.data or []
             
+            # ВАЖНО: Убеждаемся, что считаем уникальных пользователей по telegram_id
+            # Если в таблице есть дубликаты (что не должно быть, но на всякий случай),
+            # берем последнюю запись для каждого пользователя
+            unique_users_dict = {}
+            for user in all_users_raw:
+                telegram_id = str(user.get('telegram_id'))  # Приводим к строке для консистентности
+                if telegram_id:
+                    # Если пользователь уже встречался, обновляем запись (берем последнюю)
+                    unique_users_dict[telegram_id] = user
+            
+            all_users = list(unique_users_dict.values())
             total_users = len(all_users)
+            
+            logger.info(
+                f"📊 Общие метрики для бота {bot_id}: "
+                f"всего записей в БД = {len(all_users_raw)}, "
+                f"уникальных пользователей (telegram_id) = {total_users}"
+            )
             
             # Заблокированные пользователи (is_active=False)
             blocked_users = sum(1 for u in all_users if not u.get('is_active', True))
             blocked_percentage = (blocked_users / total_users * 100) if total_users > 0 else 0
             
+            logger.info(
+                f"📊 Общие метрики для бота {bot_id}: "
+                f"заблокированных = {blocked_users} ({blocked_percentage:.2f}%)"
+            )
+            
             # Пользователи по сегментам
+            # ВАЖНО: Каждый пользователь считается только один раз, даже если у него несколько сегментов
             segments_count = {}
             users_without_segment = 0
             
             for user in all_users:
-                segments_str = user.get('segments')
-                # Проверяем, что сегменты не пустые (None, пустая строка или только пробелы)
-                if not segments_str or (isinstance(segments_str, str) and segments_str.strip() == ""):
+                try:
+                    telegram_id = str(user.get('telegram_id'))
+                    segments_str = user.get('segments')
+                    
+                    # Проверяем, что сегменты не пустые (None, пустая строка или только пробелы)
+                    if not segments_str or (isinstance(segments_str, str) and segments_str.strip() == ""):
+                        users_without_segment += 1
+                    else:
+                        # segments может быть строкой с разделителями (например, "segment1,segment2")
+                        # Приводим к строке на случай, если это другой тип
+                        segment_list = [s.strip() for s in str(segments_str).split(',') if s.strip()]
+                        
+                        # ВАЖНО: Если у пользователя несколько сегментов, он считается в каждом из них
+                        # Но сам пользователь учитывается только один раз в каждом сегменте
+                        for segment in segment_list:
+                            if segment not in segments_count:
+                                segments_count[segment] = set()  # Используем set для уникальных user_id
+                            segments_count[segment].add(telegram_id)
+                except Exception as e:
+                    # Если ошибка при обработке сегментов пользователя, считаем его без сегмента
+                    logger.warning(
+                        f"⚠️ Ошибка обработки сегментов для пользователя {user.get('telegram_id')}: {e}"
+                    )
                     users_without_segment += 1
-                else:
-                    # segments может быть строкой с разделителями (например, "segment1,segment2")
-                    segment_list = [s.strip() for s in str(segments_str).split(',') if s.strip()]
-                    for segment in segment_list:
-                        segments_count[segment] = segments_count.get(segment, 0) + 1
+            
+            # Преобразуем sets в counts
+            segments_count_final = {segment: len(user_ids) for segment, user_ids in segments_count.items()}
             
             # Формируем список сегментов с процентами
             segments_list = []
-            for segment, count in segments_count.items():
+            for segment, count in segments_count_final.items():
                 segments_list.append({
                     'segment': segment,
                     'count': count,
                     'percentage': round((count / total_users * 100) if total_users > 0 else 0, 2)
                 })
+            
+            # Сортируем по количеству пользователей (от большего к меньшему)
+            segments_list.sort(key=lambda x: x['count'], reverse=True)
             
             # Добавляем пользователей без сегмента
             if users_without_segment > 0:
@@ -629,6 +727,12 @@ class SupabaseClient:
                     'percentage': round((users_without_segment / total_users * 100) if total_users > 0 else 0, 2)
                 })
             
+            logger.info(
+                f"📊 Общие метрики для бота {bot_id}: "
+                f"сегментов = {len(segments_list)}, "
+                f"пользователей без сегмента = {users_without_segment}"
+            )
+            
             return {
                 'total_users': total_users,
                 'blocked_users': blocked_users,
@@ -637,7 +741,9 @@ class SupabaseClient:
             }
             
         except Exception as e:
-            logger.error(f"Ошибка получения общих метрик для бота {bot_id}: {e}")
+            logger.error(f"❌ Ошибка получения общих метрик для бота {bot_id}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return {
                 'total_users': 0,
                 'blocked_users': 0,
@@ -648,6 +754,8 @@ class SupabaseClient:
     async def get_period_metrics(self, bot_id: str, days: int) -> Dict[str, Any]:
         """Получает метрики за период с разницей от предыдущего периода (оптимизированная версия)"""
         try:
+            logger.info(f"📊 Получение метрик за период для бота {bot_id}, период: {days} дней")
+            
             now = datetime.now(timezone.utc)
             cutoff_date = now - timedelta(days=days)
             # Для предыдущего периода берем такой же период перед текущим
@@ -655,13 +763,21 @@ class SupabaseClient:
             
             # ОПТИМИЗАЦИЯ: Параллельное выполнение запросов для текущего и предыдущего периодов
             async def get_current_period_users():
+                # Логика: фильтруем по bot_id, затем по created_at за период (от cutoff_date до now)
+                # Исключаем тестовых пользователей (first_name NOT LIKE 'Test%')
+                # Считаем сколько новых было за период (общее количество)
                 query = self.client.table('sales_users').select('telegram_id,created_at,source,medium,campaign')
                 if bot_id:
                     query = query.eq('bot_id', bot_id)
-                query = query.not_.like('first_name', 'Test%').gte('created_at', cutoff_date.isoformat())
+                # Исключаем тестовых пользователей
+                query = query.not_.like('first_name', 'Test%')
+                # Фильтруем по периоду: от cutoff_date до now (включительно)
+                query = query.gte('created_at', cutoff_date.isoformat()).lte('created_at', now.isoformat())
                 try:
                     response = query.execute()
-                    return response.data or []
+                    users = response.data or []
+                    logger.info(f"📊 Новые пользователи текущего периода для бота {bot_id}: {len(users)} (период: {cutoff_date.date()} - {now.date()})")
+                    return users
                 except Exception as e:
                     logger.warning(f"Ошибка получения пользователей текущего периода: {e}")
                     return []
@@ -670,12 +786,16 @@ class SupabaseClient:
                 query = self.client.table('sales_users').select('telegram_id,source,medium,campaign')
                 if bot_id:
                     query = query.eq('bot_id', bot_id)
-                query = query.not_.like('first_name', 'Test%').gte(
+                # Исключаем тестовых пользователей
+                query = query.not_.like('first_name', 'Test%')
+                query = query.gte(
                     'created_at', previous_cutoff_date.isoformat()
                 ).lt('created_at', cutoff_date.isoformat())
                 try:
                     response = query.execute()
-                    return response.data or []
+                    users = response.data or []
+                    logger.info(f"📊 Новые пользователи предыдущего периода для бота {bot_id}: {len(users)}")
+                    return users
                 except Exception as e:
                     logger.warning(f"Ошибка получения пользователей предыдущего периода: {e}")
                     return []
@@ -736,138 +856,117 @@ class SupabaseClient:
                 })
             
             # Получаем активных пользователей параллельно для текущего и предыдущего периодов
-            async def get_active_users_current():
+            # ОПТИМИЗИРОВАННАЯ ЛОГИКА:
+            # 1. Период: от текущего дня минус N дней до текущего дня включительно (последний день полностью)
+            # 2. Объединяем таблицы: sales_messages -> sales_chat_sessions -> sales_users
+            # 3. Достаточно одного сообщения в день в сессии для активности (группируем по session_id + день)
+            # 4. Уникальные user_id
+            # 5. Фильтр по bot_id и тестовым пользователям
+            
+            # ОПТИМИЗАЦИЯ: Вынесена общая логика фильтрации тестовых пользователей
+            async def filter_real_users(user_ids: set) -> set:
+                """Фильтрует тестовых пользователей из набора user_id"""
+                if not user_ids:
+                    return set()
+                
+                if len(user_ids) > 1000:
+                    # Если слишком много user_id, получаем всех пользователей бота и делаем пересечение
+                    real_users_query = self.client.table('sales_users').select('telegram_id')
+                    if bot_id:
+                        real_users_query = real_users_query.eq('bot_id', bot_id)
+                    real_users_query = real_users_query.not_.like('first_name', 'Test%')
+                    real_users_response = real_users_query.execute()
+                    real_user_ids_all = {str(u['telegram_id']) for u in (real_users_response.data or [])}
+                    return user_ids & real_user_ids_all
+                else:
+                    # Используем .in_() для эффективного запроса только нужных пользователей
+                    real_users_query = self.client.table('sales_users').select('telegram_id')
+                    if bot_id:
+                        real_users_query = real_users_query.eq('bot_id', bot_id)
+                    real_users_query = real_users_query.not_.like('first_name', 'Test%')
+                    real_users_query = real_users_query.in_('telegram_id', list(user_ids))
+                    real_users_response = real_users_query.execute()
+                    return {str(u['telegram_id']) for u in (real_users_response.data or [])}
+            
+            # ОПТИМИЗАЦИЯ: Получаем ВСЕ сессии бота ОДИН раз (без фильтра по дате создания),
+            # потому что пользователь мог создать сессию ДО периода, но писать сообщения В периоде.
+            # Затем используем их для обоих периодов (текущего и предыдущего).
+            sessions_query = self.client.table('sales_chat_sessions').select('id,user_id')
+            if bot_id:
+                sessions_query = sessions_query.eq('bot_id', bot_id)
+            
+            sessions_response = sessions_query.execute()
+            all_bot_sessions = sessions_response.data or []
+            
+            all_session_ids = [s['id'] for s in all_bot_sessions if s.get('id')]
+            session_to_user = {
+                str(s['id']): s.get('user_id')
+                for s in all_bot_sessions
+                if s.get('id') and s.get('user_id')
+            }
+            
+            logger.info(f"📊 Всего сессий бота {bot_id}: {len(all_session_ids)}")
+            
+            async def get_active_users_for_period(period_start, period_end, period_name, inclusive_end=True):
+                """Подсчет активных пользователей за указанный период"""
                 try:
-                    # Получаем сессии за период
-                    sessions_query = self.client.table('sales_chat_sessions').select('id,user_id')
-                    if bot_id:
-                        sessions_query = sessions_query.eq('bot_id', bot_id)
-                    sessions_query = sessions_query.gte('created_at', cutoff_date.isoformat())
-                    sessions_response = sessions_query.execute()
-                    sessions = sessions_response.data or []
-                    session_ids = [s['id'] for s in sessions if s.get('id')]
-                    
-                    if not session_ids:
+                    if not all_session_ids:
                         return 0
-                    
-                    # Получаем сообщения от пользователей
-                    messages_query = self.client.table('sales_messages').select('session_id').in_(
-                        'session_id', session_ids
-                    ).eq('role', 'user').gte('created_at', cutoff_date.isoformat())
-                    messages_response = messages_query.execute()
-                    active_messages = messages_response.data or []
-                    
-                    # Получаем уникальных активных пользователей по user_id (не по сессиям!)
-                    # Сначала получаем все session_id, которые имеют сообщения от пользователей
-                    active_session_ids = {msg['session_id'] for msg in active_messages}
-                    
-                    # Создаем маппинг session_id -> user_id
-                    session_to_user = {s['id']: s.get('user_id') for s in sessions if s.get('id') and s.get('user_id')}
-                    
-                    # Получаем уникальные user_id из активных сессий (один user_id может быть в нескольких сессиях)
-                    active_user_ids = set()
-                    for session_id in active_session_ids:
-                        user_id = session_to_user.get(session_id)
-                        if user_id:
-                            # Приводим к строке для консистентности
-                            active_user_ids.add(str(user_id))
-                    
-                    # Фильтруем тестовых пользователей
-                    if active_user_ids:
-                        real_users_query = self.client.table('sales_users').select('telegram_id')
-                        if bot_id:
-                            real_users_query = real_users_query.eq('bot_id', bot_id)
-                        real_users_query = real_users_query.not_.like('first_name', 'Test%')
-                        real_users_response = real_users_query.execute()
-                        real_user_ids = {str(u['telegram_id']) for u in (real_users_response.data or [])}
-                        active_user_ids = active_user_ids & real_user_ids
-                    
-                    # Получаем общее количество пользователей бота для проверки
-                    total_users_check_query = self.client.table('sales_users').select('telegram_id')
-                    if bot_id:
-                        total_users_check_query = total_users_check_query.eq('bot_id', bot_id)
-                    total_users_check_query = total_users_check_query.not_.like('first_name', 'Test%')
-                    total_users_check_response = total_users_check_query.execute()
-                    total_users_count_check = len(total_users_check_response.data or [])
                     
                     logger.info(
-                        f"📊 Активные пользователи текущего периода для бота {bot_id}: "
-                        f"сессий={len(sessions)}, "
-                        f"сообщений={len(active_messages)}, "
-                        f"уникальных активных user_id={len(active_user_ids)}, "
-                        f"всего пользователей бота={total_users_count_check}"
+                        f"📊 Подсчет активных пользователей ({period_name}) для бота {bot_id}: "
+                        f"период с {period_start.date().isoformat()} по {period_end.date().isoformat()}"
                     )
                     
-                    if len(active_user_ids) > total_users_count_check:
-                        logger.warning(
-                            f"⚠️ ПРОБЛЕМА: Активных пользователей ({len(active_user_ids)}) больше, "
-                            f"чем всего пользователей бота ({total_users_count_check})!"
-                        )
+                    # Получаем сообщения за период из сессий этого бота
+                    messages_query = self.client.table('sales_messages').select('session_id,created_at')
+                    messages_query = messages_query.in_('session_id', all_session_ids)
+                    messages_query = messages_query.eq('role', 'user')
+                    messages_query = messages_query.gte('created_at', period_start.isoformat())
+                    if inclusive_end:
+                        messages_query = messages_query.lte('created_at', period_end.isoformat())
+                    else:
+                        messages_query = messages_query.lt('created_at', period_end.isoformat())
                     
-                    return len(active_user_ids)
-                except Exception as e:
-                    logger.warning(f"Ошибка получения активных пользователей текущего периода: {e}")
-                    return 0
-            
-            async def get_active_users_previous():
-                try:
-                    # Получаем сессии за предыдущий период
-                    sessions_query = self.client.table('sales_chat_sessions').select('id,user_id')
-                    if bot_id:
-                        sessions_query = sessions_query.eq('bot_id', bot_id)
-                    sessions_query = sessions_query.gte(
-                        'created_at', previous_cutoff_date.isoformat()
-                    ).lt('created_at', cutoff_date.isoformat())
-                    sessions_response = sessions_query.execute()
-                    sessions = sessions_response.data or []
-                    session_ids = [s['id'] for s in sessions if s.get('id')]
+                    messages_response = messages_query.execute()
+                    all_messages = messages_response.data or []
                     
-                    if not session_ids:
+                    if not all_messages:
+                        logger.info(f"📊 Нет сообщений от пользователей за {period_name} для бота {bot_id}")
                         return 0
                     
-                    # Получаем сообщения от пользователей
-                    messages_query = self.client.table('sales_messages').select('session_id').in_(
-                        'session_id', session_ids
-                    ).eq('role', 'user').gte(
-                        'created_at', previous_cutoff_date.isoformat()
-                    ).lt('created_at', cutoff_date.isoformat())
-                    messages_response = messages_query.execute()
-                    active_messages = messages_response.data or []
-                    
-                    # Получаем уникальных активных пользователей по user_id (не по сессиям!)
-                    # Сначала получаем все session_id, которые имеют сообщения от пользователей
-                    active_session_ids = {msg['session_id'] for msg in active_messages}
-                    
-                    # Создаем маппинг session_id -> user_id
-                    session_to_user = {s['id']: s.get('user_id') for s in sessions if s.get('id') and s.get('user_id')}
-                    
-                    # Получаем уникальные user_id из активных сессий (один user_id может быть в нескольких сессиях)
+                    # Собираем уникальные user_id из сообщений
                     active_user_ids = set()
-                    for session_id in active_session_ids:
-                        user_id = session_to_user.get(session_id)
-                        if user_id:
-                            # Приводим к строке для консистентности
-                            active_user_ids.add(str(user_id))
+                    for msg in all_messages:
+                        session_id = msg.get('session_id')
+                        if session_id:
+                            user_id = session_to_user.get(str(session_id))
+                            if user_id:
+                                active_user_ids.add(str(user_id))
+                    
+                    if not active_user_ids:
+                        return 0
                     
                     # Фильтруем тестовых пользователей
-                    if active_user_ids:
-                        real_users_query = self.client.table('sales_users').select('telegram_id')
-                        if bot_id:
-                            real_users_query = real_users_query.eq('bot_id', bot_id)
-                        real_users_query = real_users_query.not_.like('first_name', 'Test%')
-                        real_users_response = real_users_query.execute()
-                        real_user_ids = {str(u['telegram_id']) for u in (real_users_response.data or [])}
-                        active_user_ids = active_user_ids & real_user_ids
+                    final_active_user_ids = await filter_real_users(active_user_ids)
                     
-                    return len(active_user_ids)
+                    logger.info(
+                        f"📊 Активные пользователи ({period_name}) для бота {bot_id}: "
+                        f"сообщений={len(all_messages)}, "
+                        f"уникальных активных user_id={len(final_active_user_ids)}"
+                    )
+                    
+                    return len(final_active_user_ids)
                 except Exception as e:
-                    logger.warning(f"Ошибка получения активных пользователей предыдущего периода: {e}")
+                    logger.warning(f"Ошибка получения активных пользователей ({period_name}): {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
                     return 0
             
-            # Параллельное получение активных пользователей
+            # Параллельное получение активных пользователей за оба периода
             active_users_count, previous_active_users_count = await asyncio.gather(
-                get_active_users_current(),
-                get_active_users_previous()
+                get_active_users_for_period(cutoff_date, now, "текущий период", inclusive_end=True),
+                get_active_users_for_period(previous_cutoff_date, cutoff_date, "предыдущий период", inclusive_end=False)
             )
             
             # Разница в процентах для активных пользователей
@@ -899,98 +998,179 @@ class SupabaseClient:
                 'active_users': {'count': 0, 'diff_percentage': 0}
             }
     
-    async def get_funnel_breakdown(self, bot_id: str) -> Dict[str, Any]:
+    def _filter_users_by_segments(self, users: List[Dict], segments: List[str]) -> List[Dict]:
+        """
+        Фильтрует список пользователей по указанным сегментам.
+        
+        Args:
+            users: Список пользователей с полем 'segments'
+            segments: Список сегментов для фильтрации
+            
+        Returns:
+            Отфильтрованный список пользователей
+        """
+        if not segments or len(segments) == 0:
+            return users
+        
+        # Нормализуем сегменты: "Без сегмента" -> пустая строка
+        normalized_segments = [s if s != "Без сегмента" else "" for s in segments]
+        has_no_segment = "Без сегмента" in segments
+        
+        filtered_users = []
+        for user in users:
+            user_segments_str = user.get("segments")
+            
+            # Проверяем, есть ли у пользователя нужные сегменты
+            if not user_segments_str or (isinstance(user_segments_str, str) and user_segments_str.strip() == ""):
+                # Пользователь без сегмента
+                if has_no_segment:
+                    filtered_users.append(user)
+            else:
+                # Пользователь с сегментами
+                user_segments_list = [s.strip() for s in str(user_segments_str).split(',') if s.strip()]
+                # Проверяем пересечение с выбранными сегментами
+                if any(seg in normalized_segments for seg in user_segments_list):
+                    filtered_users.append(user)
+        
+        return filtered_users
+
+    def _group_sessions_by_user(self, sessions: List[Dict]) -> Dict[str, List[Dict]]:
+        """
+        Группирует сессии по user_id.
+        
+        Args:
+            sessions: Список сессий с полем 'user_id'
+            
+        Returns:
+            Словарь {user_id: [список сессий]}
+        """
+        user_sessions_dict = {}
+        for session in sessions:
+            user_id = session.get("user_id")
+            if user_id:
+                user_id_str = str(user_id)
+                if user_id_str not in user_sessions_dict:
+                    user_sessions_dict[user_id_str] = []
+                user_sessions_dict[user_id_str].append(session)
+        return user_sessions_dict
+
+    def _get_user_last_stages(self, user_sessions_dict: Dict[str, List[Dict]], default_stage: str) -> Dict[str, str]:
+        """
+        Получает последнюю стадию для каждого пользователя из его сессий.
+        
+        Args:
+            user_sessions_dict: Словарь {user_id: [список сессий]}
+            default_stage: Стадия по умолчанию, если стадия не найдена
+            
+        Returns:
+            Словарь {user_id: стадия}
+        """
+        user_last_stages = {}
+        
+        for user_id_str, user_sessions_list in user_sessions_dict.items():
+            # Сортируем сессии по дате создания (последняя первая)
+            sorted_sessions = sorted(
+                user_sessions_list,
+                key=lambda s: s.get("created_at", ""),
+                reverse=True
+            )
+            
+            # Берем последнюю сессию (первую в отсортированном списке)
+            last_session = sorted_sessions[0]
+            current_stage = last_session.get("current_stage")
+            
+            # Если стадия валидна (не пустая и не None), используем ее
+            # Иначе используем начальную стадию
+            if current_stage and str(current_stage).strip():
+                user_last_stages[user_id_str] = str(current_stage).strip()
+            else:
+                user_last_stages[user_id_str] = default_stage
+        
+        return user_last_stages
+
+    async def get_funnel_breakdown(self, bot_id: str, segments: List[str] = None) -> Dict[str, Any]:
         """
         Получает разбивку пользователей по стадиям воронки (с процентами от всего пользователей)
-        Пользователи без сессий попадают в категорию "Без стадии"
+        Логика: берем последние уникальные сессии по user_id из sales_chat_sessions и смотрим current_stage
+        Пользователи без сессий попадают в стадию "introduction"
+        
+        Args:
+            bot_id: ID бота
+            segments: Список сегментов для фильтрации (опционально). Если указан, считает воронку только для пользователей из этих сегментов.
         """
         try:
-            # Получаем всех пользователей (исключая тестовых по first_name, как везде)
-            total_users_query = self.client.table("sales_users").select("telegram_id")
+            logger.info(f"🔍 Воронка для бота {bot_id}: начало получения разбивки, сегменты: {segments}")
             
-            if bot_id:
-                total_users_query = total_users_query.eq("bot_id", bot_id)
+            # ОПТИМИЗАЦИЯ: Параллельное получение пользователей и сессий
+            async def get_users():
+                query = self.client.table("sales_users").select("telegram_id,segments")
+                if bot_id:
+                    query = query.eq("bot_id", bot_id)
+                query = query.not_.like("first_name", "Test%")
+                response = query.execute()
+                return response.data or []
             
-            total_users_query = total_users_query.not_.like("first_name", "Test%")
-            total_users_response = total_users_query.execute()
-            total_users = total_users_response.data if total_users_response.data else []
+            async def get_sessions():
+                query = self.client.table("sales_chat_sessions").select(
+                    "user_id", "current_stage", "created_at"
+                )
+                if bot_id:
+                    query = query.eq("bot_id", bot_id)
+                response = query.execute()
+                return response.data or []
+            
+            # Параллельное выполнение запросов
+            total_users, all_sessions = await asyncio.gather(
+                get_users(),
+                get_sessions()
+            )
+            
+            # Фильтруем пользователей по сегментам, если указаны
+            if segments and len(segments) > 0:
+                original_count = len(total_users)
+                total_users = self._filter_users_by_segments(total_users, segments)
+                logger.info(
+                    f"🔍 Воронка для бота {bot_id}: "
+                    f"отфильтровано пользователей по сегментам {segments}: "
+                    f"было {original_count}, стало {len(total_users)}"
+                )
+            
             total_users_count = len(total_users)
-            # Приводим к строке для надежного сравнения
             total_user_ids = {str(u["telegram_id"]) for u in total_users}
+            real_user_ids = total_user_ids  # Используем те же данные
             
-            logger.info(f"🔍 Воронка для бота {bot_id}: всего пользователей (без тестовых) = {total_users_count}")
+            logger.info(
+                f"🔍 Воронка для бота {bot_id}: "
+                f"всего пользователей (без тестовых" + (f", сегменты: {segments}" if segments else "") + f") = {total_users_count}, "
+                f"всего сессий = {len(all_sessions)}"
+            )
             
-            # Получаем все сессии (включая завершенные) с текущей стадией
-            sessions_query = self.client.table("sales_chat_sessions").select("user_id", "current_stage", "created_at")
-            
-            if bot_id:
-                sessions_query = sessions_query.eq("bot_id", bot_id)
-            
-            sessions_response = sessions_query.execute()
-            all_sessions = sessions_response.data if sessions_response.data else []
-            
-            logger.info(f"🔍 Воронка для бота {bot_id}: всего сессий = {len(all_sessions)}")
-            
-            # Исключаем тестовых пользователей из сессий (используем ту же логику)
-            test_users_query = self.client.table("sales_users").select("telegram_id").like("first_name", "Test%")
-            if bot_id:
-                test_users_query = test_users_query.eq("bot_id", bot_id)
-            
-            test_users_response = test_users_query.execute()
-            test_user_ids = {str(u["telegram_id"]) for u in (test_users_response.data or [])}
-            
-            # Фильтруем сессии: исключаем тестовых пользователей (приводим user_id к строке)
-            sessions = [s for s in all_sessions if str(s.get("user_id")) not in test_user_ids]
+            # Фильтруем сессии: исключаем тестовых пользователей
+            sessions = [
+                s for s in all_sessions 
+                if s.get("user_id") and str(s.get("user_id")) in real_user_ids
+            ]
             
             logger.info(f"🔍 Воронка для бота {bot_id}: сессий после фильтрации тестовых = {len(sessions)}")
             
-            # Группируем сессии по пользователям и находим последнюю стадию для каждого
-            # Сначала группируем все сессии по user_id (приводим к строке для консистентности)
-            user_sessions_dict = {}
-            for session in sessions:
-                user_id = session.get("user_id")
-                if user_id:
-                    user_id_str = str(user_id)
-                    if user_id_str not in user_sessions_dict:
-                        user_sessions_dict[user_id_str] = []
-                    user_sessions_dict[user_id_str].append(session)
+            # Группируем сессии по user_id
+            user_sessions_dict = self._group_sessions_by_user(sessions)
             
             logger.info(f"🔍 Воронка для бота {bot_id}: уникальных пользователей с сессиями = {len(user_sessions_dict)}")
             
             # Для каждого пользователя берем последнюю сессию (по created_at) и ее стадию
-            # Если у пользователя нет сессий или нет стадии, он попадает в начальную стадию
             DEFAULT_STAGE = "introduction"  # Начальная стадия воронки
+            user_last_stages = self._get_user_last_stages(user_sessions_dict, DEFAULT_STAGE)
             
-            user_last_stages = {}
-            for user_id_str, user_sessions_list in user_sessions_dict.items():
-                # Сортируем сессии по дате создания (последняя первая)
-                sorted_sessions = sorted(
-                    user_sessions_list,
-                    key=lambda s: s.get("created_at", ""),
-                    reverse=True
-                )
-                
-                # Ищем первую сессию с валидной стадией
-                stage_found = False
-                for session in sorted_sessions:
-                    current_stage = session.get("current_stage")
-                    # Проверяем, что стадия не пустая и не None
-                    if current_stage and str(current_stage).strip():
-                        user_last_stages[user_id_str] = current_stage
-                        stage_found = True
-                        break  # Берем первую найденную (самую последнюю по дате)
-                
-                # Если у пользователя есть сессии, но нет валидной стадии, используем начальную стадию
-                if not stage_found:
-                    user_last_stages[user_id_str] = DEFAULT_STAGE
+            logger.info(
+                f"🔍 Воронка для бота {bot_id}: "
+                f"пользователей с сессиями (получили стадию) = {len(user_last_stages)}"
+            )
             
-            logger.info(f"🔍 Воронка для бота {bot_id}: пользователей с сессиями (все получили стадию) = {len(user_last_stages)}")
-            
-            # Пользователи без сессий - они тоже должны попасть в начальную стадию
+            # Пользователи без сессий попадают в начальную стадию
             users_with_sessions = set(user_last_stages.keys())
             users_without_sessions = total_user_ids - users_with_sessions
             
-            # Все пользователи без сессий попадают в начальную стадию
             for user_id_str in users_without_sessions:
                 user_last_stages[user_id_str] = DEFAULT_STAGE
             
@@ -1004,11 +1184,9 @@ class SupabaseClient:
             for user_id_str, stage in user_last_stages.items():
                 stages_count[stage] = stages_count.get(stage, 0) + 1
             
-            # Теперь все пользователи должны быть распределены по стадиям
+            # Проверка: все пользователи должны быть распределены по стадиям
             users_with_stages = set(user_last_stages.keys())
-            users_without_stages = 0  # Больше не может быть пользователей без стадии
             
-            # Детальное логирование для диагностики
             logger.info(
                 f"🔍 Воронка для бота {bot_id}: "
                 f"всего пользователей={len(total_user_ids)}, "
@@ -1017,7 +1195,6 @@ class SupabaseClient:
                 f"проверка: все пользователи учтены={len(users_with_stages) == len(total_user_ids)}"
             )
             
-            # Проверяем, что все пользователи учтены
             if len(total_user_ids) != len(users_with_stages):
                 logger.warning(
                     f"⚠️ Несоответствие в воронке для бота {bot_id}: "
@@ -1025,18 +1202,8 @@ class SupabaseClient:
                     f"распределено по стадиям={len(users_with_stages)}, "
                     f"разница={len(total_user_ids) - len(users_with_stages)}"
                 )
-                
-                # Дополнительная диагностика: проверяем пересечение множеств
-                users_only_in_total = total_user_ids - users_with_stages
-                users_only_in_stages = users_with_stages - total_user_ids
-                logger.debug(
-                    f"🔍 Детализация: "
-                    f"пользователи только в total_user_ids={len(users_only_in_total)}, "
-                    f"пользователи только в user_last_stages={len(users_only_in_stages)}"
-                )
             
             # Формируем результат с процентами
-            # Все пользователи уже распределены по стадиям (включая начальную стадию для тех, у кого нет сессий)
             stages_with_percentage = {}
             for stage, count in stages_count.items():
                 percentage = (count / total_users_count * 100) if total_users_count > 0 else 0
@@ -1062,13 +1229,32 @@ class SupabaseClient:
                     'percentage': data['percentage']
                 })
             
+            # Сортируем по порядку стадий воронки
+            stage_order = ['introduction', 'interest', 'consideration', 'intent', 'purchase']
+            funnel_breakdown_sorted = []
+            for stage in stage_order:
+                for item in funnel_breakdown:
+                    if item['stage'] == stage:
+                        funnel_breakdown_sorted.append(item)
+                        break
+            # Добавляем остальные стадии, которых нет в stage_order
+            for item in funnel_breakdown:
+                if item['stage'] not in stage_order:
+                    funnel_breakdown_sorted.append(item)
+            
+            logger.info(
+                f"🔍 Воронка для бота {bot_id}: "
+                f"стадий в разбивке = {len(funnel_breakdown_sorted)}, "
+                f"всего пользователей = {total_users_count}"
+            )
+            
             return {
                 'total_users': total_users_count,
-                'breakdown': funnel_breakdown
+                'breakdown': funnel_breakdown_sorted
             }
             
         except Exception as e:
-            logger.error(f"Ошибка получения разбивки по стадиям воронки: {e}")
+            logger.error(f"❌ Ошибка получения разбивки по стадиям воронки: {e}")
             import traceback
             logger.error(traceback.format_exc())
             return {

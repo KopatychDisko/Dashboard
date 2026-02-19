@@ -190,10 +190,11 @@ async def get_detailed_analytics(
         )
 
 @router.get("/{bot_id}/detailed-metrics", response_model=Dict[str, Any])
-@cached(ttl=settings.RESPONSE_CACHE_TTL if settings.ENABLE_RESPONSE_CACHE else None, key_params=['bot_id', 'days'])
+@cached(ttl=settings.RESPONSE_CACHE_TTL if settings.ENABLE_RESPONSE_CACHE else None, key_params=['bot_id', 'days', 'funnel_segments'])
 async def get_detailed_metrics(
     bot_id: str = Path(..., description="ID бота"),
     days: int = Query(7, ge=1, le=365, description="Количество дней для анализа"),
+    funnel_segments: str = Query(None, description="Список сегментов для фильтрации воронки (через запятую)"),
     current_user_id: int = Depends(verify_bot_access)
 ) -> Dict[str, Any]:
     """
@@ -203,10 +204,15 @@ async def get_detailed_metrics(
         Dict с общими метриками, метриками за период и разбивкой по воронке
     """
     try:
-        logger.info(f"📊 Запрос детальных метрик для бота {bot_id}, период: {days} дней")
+        logger.info(f"📊 Запрос детальных метрик для бота {bot_id}, период: {days} дней, сегменты воронки: {funnel_segments}")
         
         db_client = get_supabase_client(bot_id)
         await db_client.initialize()
+        
+        # Парсим сегменты для воронки
+        segments_list = None
+        if funnel_segments:
+            segments_list = [s.strip() for s in funnel_segments.split(',') if s.strip()]
         
         # ОПТИМИЗАЦИЯ: Выполняем независимые запросы параллельно
         logger.info(f"📈 Параллельная загрузка детальных метрик...")
@@ -214,12 +220,21 @@ async def get_detailed_metrics(
         end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
         
-        general_metrics, period_metrics, funnel_breakdown, chart_data = await asyncio.gather(
+        # Получаем active_today из get_dashboard_metrics
+        general_metrics, period_metrics, funnel_breakdown, chart_data, dashboard_metrics = await asyncio.gather(
             db_client.get_general_metrics(bot_id),
             db_client.get_period_metrics(bot_id, days),
-            db_client.get_funnel_breakdown(bot_id),
-            db_client._get_chart_data(bot_id, start_date, end_date)
+            db_client.get_funnel_breakdown(bot_id, segments=segments_list),
+            db_client._get_chart_data(bot_id, start_date, end_date),
+            db_client.get_dashboard_metrics(bot_id, days)
         )
+        
+        # Вычисляем уникальных активных пользователей за период из chart_data
+        # (сумма по дням не равна уникальным пользователям, так как один пользователь может быть активен в несколько дней)
+        unique_active_users_period = 0
+        if chart_data:
+            # Используем данные из period_metrics, где уже есть правильный подсчет уникальных активных
+            unique_active_users_period = period_metrics.get('active_users', {}).get('count', 0)
         
         # Формируем ответ
         response = {
@@ -229,6 +244,8 @@ async def get_detailed_metrics(
             "period_metrics": period_metrics,
             "funnel_breakdown": funnel_breakdown,
             "user_growth_chart": chart_data,
+            "active_today": dashboard_metrics.get('active_today', 0),
+            "unique_active_users_period": unique_active_users_period,
             "generated_at": datetime.now().isoformat()
         }
         
