@@ -58,6 +58,9 @@ const DashboardPage = () => {
 
   // Ref для хранения интервала polling
   const pollingIntervalRef = useRef(null)
+  
+  // Ref для хранения актуального периода для polling
+  const currentPeriodRef = useRef(period)
 
   // Мемоизация фильтрованных сегментов
   const filteredSegments = useMemo(() => {
@@ -76,7 +79,7 @@ const DashboardPage = () => {
         if (periodOnly) {
           setLoadingPeriodMetrics(true)
         } else {
-      setLoading(true)
+          setLoading(true)
         }
       }
       setError('')
@@ -121,7 +124,7 @@ const DashboardPage = () => {
           setDetailedMetrics(detailedResponse.data)
         }
         
-      if (eventsResponse.data.success) {
+        if (eventsResponse.data.success) {
           const loadedEvents = eventsResponse.data.events || []
           setEvents(loadedEvents)
           // Если загружено меньше чем запрошено (5), значит все события загружены
@@ -153,11 +156,11 @@ const DashboardPage = () => {
         if (periodOnly) {
           setLoadingPeriodMetrics(false)
         } else {
-      setLoading(false)
+          setLoading(false)
         }
+      }
     }
-  }
-  }, [botId, period])
+  }, [botId, period, funnelFilter.selectedSegments])
 
   // Обработчик применения фильтров для метрик за период
   const handleApplyFilters = useCallback(() => {
@@ -193,9 +196,6 @@ const DashboardPage = () => {
       setLoadingMoreEvents(false)
     }
   }, [botId, eventsLimit, events.length])
-
-  // Ref для хранения актуального периода для polling
-  const currentPeriodRef = useRef(period)
   
   // Обновляем ref при изменении периода
   useEffect(() => {
@@ -207,6 +207,7 @@ const DashboardPage = () => {
     if (analytics && detailedMetrics) {
       loadAnalytics(false, true)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period, selectedSegmentsPeriod])
 
   // Анимация только когда выбраны все сегменты (по умолчанию)
@@ -262,15 +263,12 @@ const DashboardPage = () => {
         pollingIntervalRef.current = null
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId])
 
   // Перезагрузка воронки при изменении фильтра сегментов
-  useEffect(() => {
-    if (detailedMetrics && detailedMetrics.funnel_breakdown) {
-      loadFunnelBreakdown()
-    }
-  }, [selectedSegmentsFunnel, loadFunnelBreakdown])
+  // Обрабатывается внутри useFunnelFilter хука
 
   const handleExport = useCallback(async () => {
     try {

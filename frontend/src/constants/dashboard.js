@@ -6,3 +6,4 @@ export const DEFAULT_PERIOD = 7
 export const DEFAULT_EVENTS_LIMIT = 5
 export const EVENTS_INCREMENT = 5
 
+
