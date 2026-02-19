@@ -83,8 +83,13 @@ export const analyticsAPI = {
   getDetailedAnalytics: (botId, days = 30) => 
     apiClient.get(`/analytics/${botId}/detailed`, { params: { days } }),
   
-  getDetailedMetrics: (botId, days = 7) => 
-    apiClient.get(`/analytics/${botId}/detailed-metrics`, { params: { days } }),
+  getDetailedMetrics: (botId, days = 7, funnelSegments = null) => {
+    const params = { days }
+    if (funnelSegments && funnelSegments.length > 0) {
+      params.funnel_segments = funnelSegments.join(',')
+    }
+    return apiClient.get(`/analytics/${botId}/detailed-metrics`, { params })
+  },
   
   getRecentEvents: (botId, limit = 10) => 
     apiClient.get(`/analytics/${botId}/recent-events`, { params: { limit } }),
