@@ -1,6 +1,5 @@
 import os
 from pydantic_settings import BaseSettings  # ✅ Правильно для Pydantic v2
-from pydantic import model_validator
 from typing import Optional, List
 
 class Settings(BaseSettings):
@@ -11,41 +10,11 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str 
     
     # Telegram
-    TELEGRAM_BOT_TOKEN: Optional[str] = None  # Токен для продакшена (из .env)
-    TELEGRAM_BOT_TOKEN_DEV: Optional[str] = None  # Токен для тестового окружения (опционально)
-    TELEGRAM_BOT_USERNAME: Optional[str] = None  # Username для продакшена (опционально)
-    TELEGRAM_BOT_USERNAME_DEV: Optional[str] = None  # Username для тестового окружения (опционально)
-    
-    @model_validator(mode='after')
-    def set_bot_credentials(self):
-        """Устанавливает токен и имя бота в зависимости от окружения"""
-        # Определяем токен бота
-        if self.ENVIRONMENT == "production":
-            # Для продакшена используем TELEGRAM_BOT_TOKEN
-            if not self.TELEGRAM_BOT_TOKEN:
-                raise ValueError("TELEGRAM_BOT_TOKEN обязателен для production окружения")
-            # Если не указан username, используем дефолтный для продакшена
-            if self.TELEGRAM_BOT_USERNAME is None:
-                self.TELEGRAM_BOT_USERNAME = "DashBoardMetricksBot"
-        else:
-            # Для тестового окружения используем TELEGRAM_BOT_TOKEN_DEV, если указан, иначе TELEGRAM_BOT_TOKEN
-            if self.TELEGRAM_BOT_TOKEN_DEV:
-                self.TELEGRAM_BOT_TOKEN = self.TELEGRAM_BOT_TOKEN_DEV
-            elif not self.TELEGRAM_BOT_TOKEN:
-                raise ValueError("TELEGRAM_BOT_TOKEN или TELEGRAM_BOT_TOKEN_DEV обязателен")
-            # Для тестового окружения используем TELEGRAM_BOT_USERNAME_DEV, если указан, иначе дефолтный
-            if self.TELEGRAM_BOT_USERNAME_DEV:
-                self.TELEGRAM_BOT_USERNAME = self.TELEGRAM_BOT_USERNAME_DEV
-            elif self.TELEGRAM_BOT_USERNAME:
-                # Если указан обычный username, используем его
-                pass
-            else:
-                # Если ничего не указано, используем дефолтный для теста
-                self.TELEGRAM_BOT_USERNAME = "test_dahboard_bot"
-        return self
+    TELEGRAM_BOT_TOKEN: str  # Должен быть в .env
+    TELEGRAM_BOT_USERNAME: str = "DashBoardMetricksBot"
     
     # Security
-    SECRET_KEY: str = "dev-secret-key-change-in-production"  # Опционально, для тестирования можно не указывать
+    SECRET_KEY: str  # Должен быть в .env
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
@@ -70,8 +39,8 @@ class Settings(BaseSettings):
     GZIP_MINIMUM_SIZE: int = 500
     
     # Request Timeout
-    # REQUEST_TIMEOUT_SECONDS: максимальное время выполнения запроса в секундах (по умолчанию 60 для аналитики)
-    REQUEST_TIMEOUT_SECONDS: int = 60
+    # REQUEST_TIMEOUT_SECONDS: максимальное время выполнения запроса в секундах (по умолчанию 30)
+    REQUEST_TIMEOUT_SECONDS: int = 30
     
     # Database Connection Pooling
     # DB_POOL_MAX_CONNECTIONS: максимальное количество соединений в пуле (по умолчанию 50)

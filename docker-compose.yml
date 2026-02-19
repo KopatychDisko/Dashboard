@@ -11,6 +11,7 @@ services:
       - ENVIRONMENT=development
       - FRONTEND_URL=http://127.0.0.1:80
       - CORS_ORIGINS=http://127.0.0.1:80,http://localhost:80,http://127.0.0.1,http://localhost
+      - SECRET_KEY=dev-secret-key-change-in-production
       # Для тестового бота можно указать TELEGRAM_BOT_TOKEN_DEV в .env или здесь
       # Если не указан, будет использоваться TELEGRAM_BOT_TOKEN из .env
     restart: unless-stopped
