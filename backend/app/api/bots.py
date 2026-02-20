@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 
 from app.database.supabase_client import get_supabase_client
 from app.core.dependencies import verify_bot_access
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,8 @@ async def get_user_bots(telegram_id: int):
     Получение списка ботов пользователя
     """
     try:
-        logger.info(f"Запрос списка ботов для пользователя {telegram_id}")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"Запрос списка ботов для пользователя {telegram_id}")
         
         db_client = get_supabase_client()
         await db_client.initialize()
@@ -33,17 +35,20 @@ async def get_user_bots(telegram_id: int):
             # Получаем базовую статистику (исключаем пользователей с first_name = Test)
             users_count = 0
             try:
-                logger.info(f"🔍 Подсчет пользователей для bot_id: {bot_id}")
+                if settings.ENVIRONMENT != "production":
+                    logger.info(f"🔍 Подсчет пользователей для bot_id: {bot_id}")
                 users_response = bot_client.client.table('sales_users').select(
                     'telegram_id'
                 ).eq('bot_id', bot_id).not_.like('first_name', 'Test%').execute()
                 
-                logger.info(f"📊 Ответ от БД: data={users_response.data}")
-                logger.info(f"📊 Тип данных: {type(users_response.data)}")
-                logger.info(f"📊 Длина массива: {len(users_response.data) if users_response.data else 0}")
+                if settings.ENVIRONMENT != "production":
+                    logger.info(f"📊 Ответ от БД: data={users_response.data}")
+                    logger.info(f"📊 Тип данных: {type(users_response.data)}")
+                    logger.info(f"📊 Длина массива: {len(users_response.data) if users_response.data else 0}")
                 
                 users_count = len(users_response.data) if users_response.data else 0
-                logger.info(f"✅ Для бота {bot_id} найдено {users_count} пользователей (без Test)")
+                if settings.ENVIRONMENT != "production":
+                    logger.info(f"✅ Для бота {bot_id} найдено {users_count} пользователей (без Test)")
             except Exception as e:
                 logger.error(f"❌ Ошибка получения пользователей для бота {bot_id}: {e}")
             
@@ -57,7 +62,8 @@ async def get_user_bots(telegram_id: int):
             }
             bots_info.append(bot_info)
         
-        logger.info(f"Найдено {len(bots_info)} ботов для пользователя {telegram_id}")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"Найдено {len(bots_info)} ботов для пользователя {telegram_id}")
         
         return {
             "success": True,
@@ -81,7 +87,8 @@ async def get_bot_info(
     Получение детальной информации о боте
     """
     try:
-        logger.info(f"Запрос информации о боте {bot_id}")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"Запрос информации о боте {bot_id}")
         
         db_client = get_supabase_client(bot_id)
         await db_client.initialize()
@@ -123,7 +130,8 @@ async def get_bot_users(
     Получение списка пользователей бота из таблицы sales_users
     """
     try:
-        logger.info(f"Запрос пользователей бота {bot_id}, limit={limit}, offset={offset}")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"Запрос пользователей бота {bot_id}, limit={limit}, offset={offset}")
         
         db_client = get_supabase_client(bot_id)
         await db_client.initialize()
@@ -146,7 +154,8 @@ async def get_bot_users(
             # Fallback: если count недоступен, используем длину данных
             total = len(users)
         
-        logger.info(f"Найдено {len(users)} пользователей бота {bot_id} (offset={offset}, limit={limit}, total={total})")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"Найдено {len(users)} пользователей бота {bot_id} (offset={offset}, limit={limit}, total={total})")
         
         return {
             "success": True,
@@ -177,7 +186,8 @@ async def get_user_dialog_history(
     Получение истории диалога пользователя (последняя сессия)
     """
     try:
-        logger.info(f"Запрос истории диалога для пользователя {user_id} бота {bot_id}, from_start={from_start}, limit={limit}, offset={offset}")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"Запрос истории диалога для пользователя {user_id} бота {bot_id}, from_start={from_start}, limit={limit}, offset={offset}")
         
         db_client = get_supabase_client(bot_id)
         await db_client.initialize()
@@ -191,7 +201,8 @@ async def get_user_dialog_history(
         sessions = sessions_response.data or []
         
         if not sessions:
-            logger.info(f"Сессии не найдены для пользователя {user_id} бота {bot_id}")
+            if settings.ENVIRONMENT != "production":
+                logger.info(f"Сессии не найдены для пользователя {user_id} бота {bot_id}")
             return {
                 "success": True,
                 "bot_id": bot_id,
@@ -206,7 +217,8 @@ async def get_user_dialog_history(
         last_session = sessions[0]
         session_id = last_session['id']
         
-        logger.info(f"Найдена последняя сессия {session_id} для пользователя {user_id}")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"Найдена последняя сессия {session_id} для пользователя {user_id}")
         
         # Получаем сообщения из последней сессии с count в одном запросе
         messages_query = db_client.client.table('sales_messages').select(
@@ -238,7 +250,8 @@ async def get_user_dialog_history(
         # Если from_start=False: сортировка DESC, получаем с конца (последние сообщения)
         # Фронтенд сам решает, как отображать
         
-        logger.info(f"Найдено {len(messages)} сообщений из {total_messages} для сессии {session_id}, from_start={from_start}, offset={offset}")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"Найдено {len(messages)} сообщений из {total_messages} для сессии {session_id}, from_start={from_start}, offset={offset}")
         
         return {
             "success": True,
