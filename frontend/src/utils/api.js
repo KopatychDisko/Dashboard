@@ -21,9 +21,12 @@ apiClient.interceptors.response.use(
     // Обрабатываем ошибку через централизованный обработчик
     const errorInfo = handleApiError(error)
     
-    // Логируем только в development режиме
+    // Логируем ошибки (в продакшене только критические)
     if (import.meta.env.DEV) {
       console.error('API Error:', errorInfo, error)
+    } else if (errorInfo.statusCode >= 500) {
+      // В продакшене логируем только серверные ошибки
+      console.error('API Server Error:', errorInfo.statusCode, errorInfo.message)
     }
     
     // Если ошибка авторизации - перенаправляем на логин
