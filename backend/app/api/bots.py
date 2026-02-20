@@ -120,7 +120,7 @@ async def get_bot_users(
     current_user_id: int = Depends(verify_bot_access)
 ):
     """
-    Получение списка пользователей бота
+    Получение списка пользователей бота из таблицы sales_users
     """
     try:
         logger.info(f"Запрос пользователей бота {bot_id}, limit={limit}, offset={offset}")
@@ -128,15 +128,31 @@ async def get_bot_users(
         db_client = get_supabase_client(bot_id)
         await db_client.initialize()
         
-        # Здесь можно добавить метод для получения пользователей бота
-        # Пока возвращаем заглушку
-        users = []
+        # Получаем пользователей бота с count в одном запросе, исключая тестовых (first_name LIKE 'Test%')
+        users_query = db_client.client.table('sales_users').select(
+            'telegram_id,username,first_name,last_name,language_code,created_at,updated_at,is_active',
+            count='exact'
+        ).eq('bot_id', bot_id).not_.like('first_name', 'Test%').order('created_at', desc=True)
+        
+        # Применяем пагинацию
+        users_query = users_query.range(offset, offset + limit - 1)
+        
+        users_response = users_query.execute()
+        users = users_response.data or []
+        
+        # Получаем общее количество из того же запроса
+        total = getattr(users_response, 'count', None)
+        if total is None:
+            # Fallback: если count недоступен, используем длину данных
+            total = len(users)
+        
+        logger.info(f"Найдено {len(users)} пользователей бота {bot_id} (offset={offset}, limit={limit}, total={total})")
         
         return {
             "success": True,
             "bot_id": bot_id,
             "users": users,
-            "total": len(users),
+            "total": total,
             "limit": limit,
             "offset": offset
         }
@@ -146,4 +162,103 @@ async def get_bot_users(
         raise HTTPException(
             status_code=500,
             detail="Ошибка получения пользователей бота"
+        )
+
+@router.get("/{bot_id}/users/{user_id}/dialog")
+async def get_user_dialog_history(
+    bot_id: str,
+    user_id: int,
+    from_start: bool = Query(True, description="Читать с начала (от start) или с конца (последние сообщения)"),
+    limit: int = Query(50, ge=1, le=200, description="Количество сообщений для загрузки"),
+    offset: int = Query(0, ge=0, description="Смещение для пагинации"),
+    current_user_id: int = Depends(verify_bot_access)
+):
+    """
+    Получение истории диалога пользователя (последняя сессия)
+    """
+    try:
+        logger.info(f"Запрос истории диалога для пользователя {user_id} бота {bot_id}, from_start={from_start}, limit={limit}, offset={offset}")
+        
+        db_client = get_supabase_client(bot_id)
+        await db_client.initialize()
+        
+        # Получаем последнюю сессию пользователя
+        sessions_query = db_client.client.table('sales_chat_sessions').select(
+            'id,user_id,created_at,updated_at'
+        ).eq('bot_id', bot_id).eq('user_id', str(user_id)).order('created_at', desc=True).limit(1)
+        
+        sessions_response = sessions_query.execute()
+        sessions = sessions_response.data or []
+        
+        if not sessions:
+            logger.info(f"Сессии не найдены для пользователя {user_id} бота {bot_id}")
+            return {
+                "success": True,
+                "bot_id": bot_id,
+                "user_id": user_id,
+                "session": None,
+                "messages": [],
+                "total": 0,
+                "limit": limit,
+                "offset": offset
+            }
+        
+        last_session = sessions[0]
+        session_id = last_session['id']
+        
+        logger.info(f"Найдена последняя сессия {session_id} для пользователя {user_id}")
+        
+        # Получаем сообщения из последней сессии с count в одном запросе
+        messages_query = db_client.client.table('sales_messages').select(
+            'id,session_id,role,content,created_at',
+            count='exact'
+        ).eq('session_id', session_id)
+        
+        # Сортируем в зависимости от параметра from_start
+        if from_start:
+            # Читаем с начала (от start) - сортировка по created_at ASC
+            messages_query = messages_query.order('created_at', desc=False)
+        else:
+            # Читаем с конца (последние сообщения) - сортировка по created_at DESC
+            messages_query = messages_query.order('created_at', desc=True)
+        
+        # Применяем пагинацию
+        messages_query = messages_query.range(offset, offset + limit - 1)
+        
+        messages_response = messages_query.execute()
+        messages = messages_response.data or []
+        
+        # Получаем общее количество из того же запроса
+        total_messages = getattr(messages_response, 'count', None)
+        if total_messages is None:
+            total_messages = len(messages) if messages else 0
+        
+        # НЕ переворачиваем массив - порядок уже правильный после сортировки
+        # Если from_start=True: сортировка ASC, получаем с начала
+        # Если from_start=False: сортировка DESC, получаем с конца (последние сообщения)
+        # Фронтенд сам решает, как отображать
+        
+        logger.info(f"Найдено {len(messages)} сообщений из {total_messages} для сессии {session_id}, from_start={from_start}, offset={offset}")
+        
+        return {
+            "success": True,
+            "bot_id": bot_id,
+            "user_id": user_id,
+            "session": {
+                "id": last_session['id'],
+                "created_at": last_session.get('created_at'),
+                "updated_at": last_session.get('updated_at')
+            },
+            "messages": messages,
+            "total": total_messages,
+            "limit": limit,
+            "offset": offset,
+            "from_start": from_start
+        }
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения истории диалога для пользователя {user_id} бота {bot_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка получения истории диалога: {str(e)}"
         )

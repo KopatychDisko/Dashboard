@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth.jsx'
 import { analyticsAPI } from '../utils/api'
 import LoadingSpinner from '../components/LoadingSpinner'
 import LoadingOverlay from '../components/LoadingOverlay'
+import ViewToggle from '../components/ViewToggle'
 import { ArrowLeft, Download, Users, Activity } from 'lucide-react'
 import SegmentsFilter from '../components/SegmentsFilter'
 import MetricCard from '../components/dashboard/MetricCard'
@@ -23,7 +24,7 @@ const MetricsGrid = React.lazy(() => import('../components/dashboard/MetricsGrid
 const RevenueChart = React.lazy(() => import('../components/dashboard/RevenueChart'))
 const FunnelChart = React.lazy(() => import('../components/dashboard/FunnelChart'))
 const UserGrowthChart = React.lazy(() => import('../components/dashboard/UserGrowthChart'))
-const SegmentsPieChart = React.lazy(() => import('../components/dashboard/SegmentsPieChart'))
+const SegmentsBarChart = React.lazy(() => import('../components/dashboard/SegmentsBarChart'))
 const FunnelPieChart = React.lazy(() => import('../components/dashboard/FunnelPieChart'))
 
 
@@ -48,6 +49,7 @@ const DashboardPage = () => {
   const [period, setPeriod] = useState(DEFAULT_PERIOD)
   const [lastUpdate, setLastUpdate] = useState(null)
   
+  
   // Хук для управления фильтром воронки (после объявления error и period)
   const funnelFilter = useFunnelFilter(
     botId, 
@@ -61,6 +63,9 @@ const DashboardPage = () => {
   
   // Ref для хранения актуального периода для polling
   const currentPeriodRef = useRef(period)
+  
+  // Ref для хранения актуального лимита событий для polling
+  const currentEventsLimitRef = useRef(DEFAULT_EVENTS_LIMIT)
 
   // Мемоизация фильтрованных сегментов
   const filteredSegments = useMemo(() => {
@@ -74,6 +79,11 @@ const DashboardPage = () => {
   const loadAnalytics = useCallback(async (silent = false, periodOnly = false) => {
     // Используем ref для получения актуального периода в polling
     const currentPeriod = periodOnly ? period : currentPeriodRef.current
+    
+    if (import.meta.env.DEV) {
+      console.log('[DashboardPage] loadAnalytics:', { botId, currentPeriod, silent, periodOnly })
+    }
+    
     try {
       if (!silent) {
         if (periodOnly) {
@@ -82,7 +92,9 @@ const DashboardPage = () => {
           setLoading(true)
         }
       }
-      setError('')
+      if (!silent) {
+        setError('') // Сбрасываем ошибки только при обычной загрузке
+      }
       
       if (periodOnly) {
         // Загружаем только метрики за период
@@ -102,10 +114,13 @@ const DashboardPage = () => {
         }))
       } else {
         // Загружаем все метрики
+        // При polling запрашиваем столько событий, сколько уже загружено, чтобы не потерять раскрытие
+        const eventsToLoad = silent ? currentEventsLimitRef.current : DEFAULT_EVENTS_LIMIT
+        
         const [dashboardResponse, detailedResponse, eventsResponse] = await Promise.all([
           analyticsAPI.getDashboardAnalytics(botId, currentPeriod),
           analyticsAPI.getDetailedMetrics(botId, currentPeriod, funnelFilter.selectedSegments.length > 0 ? funnelFilter.selectedSegments : null),
-          analyticsAPI.getRecentEvents(botId, DEFAULT_EVENTS_LIMIT)
+          analyticsAPI.getRecentEvents(botId, eventsToLoad)
         ])
         
         setAnalytics(dashboardResponse.data)
@@ -126,13 +141,23 @@ const DashboardPage = () => {
         
         if (eventsResponse.data.success) {
           const loadedEvents = eventsResponse.data.events || []
-          setEvents(loadedEvents)
-          // Если загружено меньше чем запрошено (5), значит все события загружены
-          // Если загружено ровно 5, возможно есть еще - кнопка покажется
-          setAllEventsLoaded(loadedEvents.length < DEFAULT_EVENTS_LIMIT)
-          // Сбрасываем лимит только при обычной загрузке (не при polling), чтобы сохранить раскрытие событий
-          if (!silent) {
+          
+          if (silent) {
+            // При polling обновляем события, но сохраняем текущий лимит и состояние загрузки
+            setEvents(loadedEvents)
+            // Обновляем allEventsLoaded только если загружено меньше запрошенного
+            if (loadedEvents.length < eventsToLoad) {
+              setAllEventsLoaded(true)
+            }
+            // eventsLimit не меняем - сохраняем раскрытие
+          } else {
+            // При обычной загрузке обновляем все
+            setEvents(loadedEvents)
+            // Если загружено меньше чем запрошено (5), значит все события загружены
+            // Если загружено ровно 5, возможно есть еще - кнопка покажется
+            setAllEventsLoaded(loadedEvents.length < DEFAULT_EVENTS_LIMIT)
             setEventsLimit(DEFAULT_EVENTS_LIMIT)
+            currentEventsLimitRef.current = DEFAULT_EVENTS_LIMIT // Обновляем ref
           }
         }
       }
@@ -141,15 +166,21 @@ const DashboardPage = () => {
       setLastUpdate(new Date())
     } catch (err) {
       // Используем обработанную ошибку из interceptor
-      const errorMessage = err.processedError?.message || err.response?.data?.detail || 'Не удалось загрузить аналитику'
+      const errorInfo = err.processedError || {}
+      const errorMessage = errorInfo.message || err.response?.data?.detail || 'Не удалось загрузить аналитику'
       
+      // Показываем ошибки только при обычной загрузке (не polling)
       if (!silent) {
         setError(errorMessage)
       }
       
       // Логируем только в development
       if (import.meta.env.DEV) {
-      console.error('Ошибка загрузки аналитики:', err)
+        console.error('Ошибка загрузки аналитики:', {
+          error: err,
+          errorInfo,
+          silent
+        })
       }
     } finally {
       if (!silent) {
@@ -174,6 +205,7 @@ const DashboardPage = () => {
     navigate('/bots')
   }, [navigate])
 
+
   // Загрузка дополнительных событий
   const loadMoreEvents = useCallback(async () => {
     try {
@@ -185,6 +217,7 @@ const DashboardPage = () => {
         const loadedEvents = response.data.events || []
         setEvents(loadedEvents)
         setEventsLimit(newLimit)
+        currentEventsLimitRef.current = newLimit // Обновляем ref
         // Если загружено меньше чем запрошено ИЛИ количество событий не увеличилось, значит все события загружены
         if (loadedEvents.length < newLimit || loadedEvents.length === previousEventsCount) {
           setAllEventsLoaded(true)
@@ -201,6 +234,11 @@ const DashboardPage = () => {
   useEffect(() => {
     currentPeriodRef.current = period
   }, [period])
+  
+  // Обновляем ref при изменении лимита событий
+  useEffect(() => {
+    currentEventsLimitRef.current = eventsLimit
+  }, [eventsLimit])
 
   // При изменении периода или сегментов загружаем только метрики за период
   useEffect(() => {
@@ -212,9 +250,15 @@ const DashboardPage = () => {
 
   // Анимация только когда выбраны все сегменты (по умолчанию)
   const shouldAnimateSegmentsChart = selectedSegments.length === 0
-  const shouldAnimateFunnelChart = true // Воронка всегда анимируется при первой загрузке
+  const shouldAnimateFunnelChart = funnelFilter.selectedSegments.length === 0 // Анимация только когда выбраны все сегменты
 
   useEffect(() => {
+    if (!botId) return
+    
+    if (import.meta.env.DEV) {
+      console.log('[DashboardPage] Загрузка дашборда для бота:', botId)
+    }
+    
     // При смене бота загружаем все метрики и синхронизируем временные значения
     setTempPeriod(DEFAULT_PERIOD)
     setTempSelectedSegmentsPeriod([])
@@ -222,8 +266,13 @@ const DashboardPage = () => {
     setSelectedSegmentsPeriod([])
     funnelFilter.resetFilters() // Сбрасываем фильтр сегментов воронки
     setEventsLimit(DEFAULT_EVENTS_LIMIT) // Сбрасываем лимит событий
+    currentEventsLimitRef.current = DEFAULT_EVENTS_LIMIT // Обновляем ref
     setAllEventsLoaded(false) // Сбрасываем флаг загрузки всех событий
     currentPeriodRef.current = DEFAULT_PERIOD // Обновляем ref
+    setError('') // Сбрасываем ошибки
+    setAnalytics(null) // Сбрасываем данные
+    setDetailedMetrics(null) // Сбрасываем детальные метрики
+    setEvents([]) // Сбрасываем события
     loadAnalytics(false, false)
 
     // Очистка предыдущего интервала если есть
@@ -338,15 +387,16 @@ const DashboardPage = () => {
                 <span className="text-3xl emoji">📊</span>
                 <h1 className="text-xl lg:text-3xl font-bold text-white">
                   Дашбоард бота
-              </h1>
+                </h1>
               </div>
-              <p className="text-sm lg:text-base text-white/70">
+              <p className="text-sm lg:text-base text-white/70 mt-1">
                 {botId}
               </p>
             </div>
           </div>
           
           <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 lg:gap-4">
+            <ViewToggle botId={botId} />
             <button
               onClick={handleExport}
               className="flex items-center justify-center gap-2 px-4 py-2 bg-transparent hover:bg-white/10 rounded-xl transition-colors text-sm w-full lg:w-auto"
@@ -428,10 +478,10 @@ const DashboardPage = () => {
                     />
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Круговая диаграмма */}
+                    {/* Столбчатая диаграмма */}
                     <div className="glass-card p-4 lg:p-6 relative overflow-hidden">
                       <Suspense fallback={<div className="h-96 flex items-center justify-center"><LoadingSpinner /></div>}>
-                        <SegmentsPieChart 
+                        <SegmentsBarChart 
                           data={detailedMetrics.general_metrics.segments}
                           selectedSegments={selectedSegments}
                           totalUsers={detailedMetrics.general_metrics.total_users}

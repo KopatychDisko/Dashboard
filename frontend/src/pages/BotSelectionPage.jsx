@@ -68,14 +68,33 @@ const BotSelectionPage = () => {
         botsLoadedRef.current = false // Не помечаем как загруженное при ошибке
       }
     } catch (err) {
-      const errorMessage = err.message === 'Таймаут загрузки ботов'
-        ? 'Превышено время ожидания загрузки ботов. Попробуйте обновить страницу.'
-        : (err.processedError?.message || err.response?.data?.detail || 'Ошибка загрузки ботов')
+      const errorInfo = err.processedError || {}
+      let errorMessage = ''
+      
+      if (err.message === 'Таймаут загрузки ботов') {
+        errorMessage = 'Превышено время ожидания загрузки ботов. Попробуйте обновить страницу.'
+      } else if (errorInfo.type === 'network') {
+        // Для сетевых ошибок показываем сообщение только в dev режиме или если это не первая загрузка
+        if (import.meta.env.DEV || forceReload) {
+          errorMessage = errorInfo.message || 'Проблема с подключением к серверу'
+        } else {
+          // В продакшене при первой загрузке не показываем сетевые ошибки
+          errorMessage = ''
+        }
+      } else {
+        errorMessage = errorInfo.message || err.response?.data?.detail || 'Ошибка загрузки ботов'
+      }
+      
       console.error('[BotSelectionPage] loadUserBots: ошибка загрузки', {
         message: errorMessage,
-        error: err
+        errorInfo,
+        error: err,
+        forceReload
       })
-      setError(errorMessage)
+      
+      if (errorMessage) {
+        setError(errorMessage)
+      }
       botsLoadedRef.current = false // Не помечаем как загруженное при ошибке
     } finally {
       setLoading(false)

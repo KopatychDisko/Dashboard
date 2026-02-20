@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
+import DialogHistoryPage from './pages/DialogHistoryPage'
 import BotSelectionPage from './pages/BotSelectionPage'
 import AccountSwitchGuide from './pages/AccountSwitchGuide'
 
@@ -31,6 +32,12 @@ function AppRoutes() {
         path="/dashboard/:botId" 
         element={
           isAuthenticated ? <DashboardPage /> : <Navigate to="/login" replace />
+        } 
+      />
+      <Route 
+        path="/dialog-history/:botId" 
+        element={
+          isAuthenticated ? <DialogHistoryPage /> : <Navigate to="/login" replace />
         } 
       />
       <Route 
