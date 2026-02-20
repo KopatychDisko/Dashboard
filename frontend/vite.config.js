@@ -57,7 +57,7 @@ export default defineConfig({
       minifyIdentifiers: true,
       minifySyntax: true,
       minifyWhitespace: true,
-      drop: ['console', 'debugger']
+      drop: ['debugger']
     }
   },
   optimizeDeps: {

@@ -39,8 +39,11 @@ export const useFunnelFilter = (botId, period, setDetailedMetrics, setError) => 
       }))
     } catch (err) {
       setError('Ошибка загрузки воронки')
+      // Логируем ошибки для отладки
       if (import.meta.env.DEV) {
         console.error('Ошибка загрузки воронки:', err)
+      } else {
+        console.error('Ошибка загрузки воронки:', err?.message || 'Unknown error')
       }
     } finally {
       setLoading(false)
