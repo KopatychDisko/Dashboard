@@ -26,15 +26,19 @@ COPY . .
 # Очищаем assets и создаем dist
 RUN rm -rf /app/public/assets && mkdir -p /app/dist
 
-# Аргументы для сборки
-ARG VITE_API_URL=http://localhost:8000/api
-ARG VITE_TELEGRAM_BOT_USERNAME=DashBoardMetricksBot
-ARG VITE_AUTH_URL=https://dshb.lemifar.ru/bots
+# Аргументы для сборки (без значений по умолчанию для безопасности)
+# Значения передаются через --build-arg при сборке
+ARG VITE_API_URL
+ARG VITE_TELEGRAM_BOT_USERNAME
+ARG VITE_AUTH_URL
 
 # Установка переменных окружения для сборки
-ENV VITE_API_URL=$VITE_API_URL \
-    VITE_TELEGRAM_BOT_USERNAME=$VITE_TELEGRAM_BOT_USERNAME \
-    VITE_AUTH_URL=$VITE_AUTH_URL \
+# Vite требует эти переменные на этапе сборки, так как они встраиваются в JS код
+# Примечание: Эти переменные не являются секретами (публичные URL),
+# но для настоящих секретов используйте Docker secrets через --secret
+ENV VITE_API_URL=${VITE_API_URL} \
+    VITE_TELEGRAM_BOT_USERNAME=${VITE_TELEGRAM_BOT_USERNAME} \
+    VITE_AUTH_URL=${VITE_AUTH_URL} \
     NODE_ENV=production \
     NODE_OPTIONS="--max-old-space-size=8192"
 

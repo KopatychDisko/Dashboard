@@ -15,11 +15,49 @@ export class AppError extends Error {
  * Обрабатывает ошибки API запросов и возвращает понятное сообщение
  */
 export const handleApiError = (error) => {
-  // Сетевая ошибка
-  if (!error.response) {
+  // Проверяем, является ли это реальной сетевой ошибкой
+  const isNetworkError = !error.response && (
+    error.code === 'ECONNABORTED' || // Таймаут
+    error.code === 'ERR_NETWORK' || // Сетевая ошибка
+    error.code === 'ERR_INTERNET_DISCONNECTED' || // Нет интернета
+    error.message?.includes('Network Error') || // Сетевая ошибка в сообщении
+    error.message?.includes('timeout') || // Таймаут
+    (error.request && !error.response) // Запрос был отправлен, но ответа нет
+  )
+  
+  // Сетевая ошибка - только для реальных проблем с сетью
+  if (isNetworkError) {
+    // В режиме разработки показываем более детальное сообщение
+    if (import.meta.env.DEV) {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+      return {
+        message: `Сайт находится в режиме разработки. Проблема с подключением к серверу. Проверьте, что сервер запущен и доступен по адресу ${apiUrl}`,
+        type: 'network',
+        statusCode: 0
+      }
+    }
+    // В продакшене показываем общее сообщение
     return {
-      message: 'Нет подключения к серверу. Проверьте интернет-соединение.',
+      message: 'Сайт находится в разработке. Некоторые функции могут быть временно недоступны.',
       type: 'network',
+      statusCode: 0
+    }
+  }
+  
+  // Если нет response, но это не сетевая ошибка - возможно, это другая проблема
+  if (!error.response) {
+    // В режиме разработки показываем детали
+    if (import.meta.env.DEV) {
+      return {
+        message: `Ошибка запроса: ${error.message || 'Неизвестная ошибка'}. Проверьте консоль для деталей.`,
+        type: 'unknown',
+        statusCode: 0
+      }
+    }
+    // В продакшене показываем общее сообщение о разработке
+    return {
+      message: 'Сайт находится в разработке. Попробуйте обновить страницу или вернитесь позже.',
+      type: 'unknown',
       statusCode: 0
     }
   }

@@ -23,17 +23,24 @@ apiClient.interceptors.response.use(
     
     // Логируем ошибки (в продакшене только критические)
     if (import.meta.env.DEV) {
-      console.error('API Error:', errorInfo, error)
-    } else if (errorInfo.statusCode >= 500) {
-      // В продакшене логируем только серверные ошибки
-      console.error('API Server Error:', errorInfo.statusCode, errorInfo.message)
+      console.error('API Error:', {
+        message: errorInfo.message,
+        type: errorInfo.type,
+        statusCode: errorInfo.statusCode,
+        originalError: error,
+        url: error.config?.url,
+        method: error.config?.method
+      })
+    } else if (errorInfo.statusCode >= 500 || errorInfo.type === 'network') {
+      // В продакшене логируем только серверные ошибки и сетевые проблемы
+      console.error('API Error:', errorInfo.statusCode, errorInfo.message)
     }
     
     // Если ошибка авторизации - перенаправляем на логин
     if (errorInfo.statusCode === 401) {
       // Не редиректим если мы уже на странице логина
       if (!window.location.pathname.includes('/login')) {
-      window.location.href = '/login'
+        window.location.href = '/login'
       }
     }
     
@@ -70,7 +77,17 @@ export const botsAPI = {
     apiClient.get(`/bots/${botId}/info`),
   
   getBotUsers: (botId, params = {}) => 
-    apiClient.get(`/bots/${botId}/users`, { params })
+    apiClient.get(`/bots/${botId}/users`, { params }),
+  
+  getUserDialogHistory: (botId, userId, params = {}) => 
+    apiClient.get(`/bots/${botId}/users/${userId}/dialog`, { 
+      params: {
+        from_start: params.from_start !== undefined ? params.from_start : true,
+        limit: params.limit || 50,
+        offset: params.offset || 0,
+        ...params
+      }
+    })
 }
 
 export const analyticsAPI = {
