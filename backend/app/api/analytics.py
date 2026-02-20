@@ -384,7 +384,6 @@ async def export_analytics(
         elif export_format == "csv":
             # Возвращаем те же данные - конвертация в CSV происходит на фронтенде
             if settings.ENVIRONMENT != "production":
-                if settings.ENVIRONMENT != "production":
                 logger.info(f"✅ CSV экспорт для бота {bot_id} завершен (конвертация на фронтенде)")
             return export_data
         
