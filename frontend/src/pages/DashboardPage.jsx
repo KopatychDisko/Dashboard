@@ -399,7 +399,7 @@ const DashboardPage = () => {
             <ViewToggle botId={botId} />
             <button
               onClick={handleExport}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-transparent hover:bg-white/10 rounded-xl transition-colors text-sm w-full lg:w-auto"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-transparent hover:bg-white/10 rounded-xl transition-colors text-sm ml-auto lg:ml-0"
             >
               <Download size={20} />
               Экспорт
