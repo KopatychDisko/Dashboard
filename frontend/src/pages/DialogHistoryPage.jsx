@@ -254,10 +254,10 @@ const DialogHistoryPage = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col p-2 sm:p-3 lg:p-6">
-      <div className="max-w-7xl mx-auto w-full flex flex-col flex-1 min-h-0">
+    <div className="min-h-screen p-2 sm:p-3 lg:p-6">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6 lg:mb-8 flex-shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6 lg:mb-8">
           <div className="flex items-center gap-2 sm:gap-3 lg:gap-4">
             <button
               onClick={() => navigate('/bots')}
@@ -282,17 +282,17 @@ const DialogHistoryPage = () => {
         </div>
 
         {error && (
-          <div className="glass-card p-4 mb-6 bg-red-500/10 border border-red-500/20 flex-shrink-0">
+          <div className="glass-card p-4 mb-6 bg-red-500/10 border border-red-500/20">
             <p className="text-red-400 text-sm">{error}</p>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 flex-1 min-h-0">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
           {/* Список пользователей */}
-          <div className="lg:col-span-1 flex flex-col min-h-0">
-            <div className="glass-card p-3 sm:p-4 lg:p-6 flex flex-col flex-1 min-h-0">
+          <div className="lg:col-span-1">
+            <div className="glass-card p-3 sm:p-4 lg:p-6">
               {/* Поиск */}
-              <div className="relative mb-3 sm:mb-4 flex-shrink-0">
+              <div className="relative mb-3 sm:mb-4">
                 <Search className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-white/50" size={16} />
                 <input
                   type="text"
@@ -304,7 +304,7 @@ const DialogHistoryPage = () => {
               </div>
 
               {/* Список пользователей */}
-              <div className="space-y-1.5 sm:space-y-2 flex-1 overflow-y-auto min-h-0">
+              <div className="space-y-1.5 sm:space-y-2 max-h-[calc(100vh-280px)] sm:max-h-[calc(100vh-300px)] lg:max-h-[calc(100vh-200px)] overflow-y-auto">
                 {filteredUsers.length > 0 ? (
                   <>
                     {filteredUsers.map((user) => (
@@ -358,11 +358,11 @@ const DialogHistoryPage = () => {
           </div>
 
           {/* История диалога */}
-          <div className="lg:col-span-2 flex flex-col min-h-0">
-            <div className="glass-card p-3 sm:p-4 lg:p-6 flex flex-col flex-1 min-h-0">
+          <div className="lg:col-span-2">
+            <div className="glass-card p-3 sm:p-4 lg:p-6">
               {selectedUser ? (
                 <>
-                  <div className="mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-white/10 flex-shrink-0">
+                  <div className="mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-white/10">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-3 sm:mb-4">
                       <div className="flex items-center gap-2 sm:gap-3">
                         <div className="w-10 h-10 sm:w-11 sm:h-11 lg:w-12 lg:h-12 rounded-full bg-gradient-to-r from-emerald-400 to-blue-400 flex items-center justify-center text-white font-semibold text-base sm:text-lg">
@@ -447,13 +447,13 @@ const DialogHistoryPage = () => {
                   </div>
 
                   {loadingDialog && dialogHistory.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 flex-1">
+                    <div className="flex flex-col items-center justify-center py-20">
                       <LoadingSpinner />
                       <p className="text-white/50 text-sm mt-4">Загрузка истории...</p>
                     </div>
                   ) : dialogHistory.length > 0 ? (
                     <>
-                      <div className="space-y-2 sm:space-y-3 flex-1 overflow-y-auto min-h-0">
+                      <div className="space-y-2 sm:space-y-3 max-h-[calc(100vh-400px)] sm:max-h-[calc(100vh-420px)] lg:max-h-[calc(100vh-320px)] overflow-y-auto">
                         {dialogHistory.map((message, index) => {
                           const isUser = message.role === 'user'
                           
@@ -487,7 +487,7 @@ const DialogHistoryPage = () => {
                       
                       {/* Кнопка загрузки дополнительных сообщений */}
                       {hasMoreMessages && (
-                        <div className="flex justify-center mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/10 flex-shrink-0">
+                        <div className="flex justify-center mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/10">
                           <button
                             onClick={loadMoreMessages}
                             disabled={loadingDialog}
@@ -511,7 +511,7 @@ const DialogHistoryPage = () => {
                       )}
                       
                       {/* Информация о количестве сообщений */}
-                      <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/10 flex-shrink-0">
+                      <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/10">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-0 text-[10px] sm:text-xs text-white/50">
                           <p>
                             Показано {dialogHistory.length} из {totalMessages} сообщений
