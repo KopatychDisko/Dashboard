@@ -27,20 +27,23 @@ async def get_dashboard_analytics(
         Dict с метриками, воронкой продаж и выручкой по дням
     """
     try:
-        logger.info(f"📊 Запрос аналитики дашборда для бота {bot_id}, период: {days} дней")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"📊 Запрос аналитики дашборда для бота {bot_id}, период: {days} дней")
         
         db_client = get_supabase_client(bot_id)
         await db_client.initialize()
         
         # ОПТИМИЗАЦИЯ: Выполняем независимые запросы параллельно
-        logger.info(f"📈 Параллельная загрузка метрик и воронки...")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"📈 Параллельная загрузка метрик и воронки...")
         metrics_data, funnel_data = await asyncio.gather(
             db_client.get_dashboard_metrics(bot_id, days),
             db_client.get_funnel_stats(bot_id, days)
         )
         
         # Получаем данные роста пользователей (зависит от метрик)
-        logger.info(f"📈 Получение данных роста пользователей...")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"📈 Получение данных роста пользователей...")
         # Вычисляем базовое количество: общее количество минус новые за период
         base_total = max(0, metrics_data.get('total_users', 0) - metrics_data.get('new_users', 0))
         user_growth_data = await db_client.get_user_growth_data(bot_id, days, base_total)
@@ -54,7 +57,8 @@ async def get_dashboard_analytics(
             "generated_at": datetime.now().isoformat()
         }
         
-        logger.info(f"✅ Аналитика для бота {bot_id} успешно сформирована")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"✅ Аналитика для бота {bot_id} успешно сформирована")
         
         return response
         
@@ -79,14 +83,16 @@ async def get_bot_metrics(
         Dict с основными метриками: выручка, пользователи, конверсия, LTV
     """
     try:
-        logger.info(f"📊 Запрос метрик для бота {bot_id}, период: {days} дней")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"📊 Запрос метрик для бота {bot_id}, период: {days} дней")
         
         db_client = get_supabase_client(bot_id)
         await db_client.initialize()
         
         metrics = await db_client.get_dashboard_metrics(bot_id, days)
         
-        logger.info(f"✅ Метрики для бота {bot_id} получены")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"✅ Метрики для бота {bot_id} получены")
         
         return {
             "success": True,
@@ -116,14 +122,16 @@ async def get_funnel_analytics(
         Dict со статистикой воронки по этапам и общей конверсией
     """
     try:
-        logger.info(f"🎯 Запрос воронки для бота {bot_id}, период: {days} дней")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"🎯 Запрос воронки для бота {bot_id}, период: {days} дней")
         
         db_client = get_supabase_client(bot_id)
         await db_client.initialize()
         
         funnel_stats = await db_client.get_funnel_stats(bot_id, days)
         
-        logger.info(f"✅ Воронка для бота {bot_id} получена: {len(funnel_stats.get('steps', []))} этапов")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"✅ Воронка для бота {bot_id} получена: {len(funnel_stats.get('steps', []))} этапов")
         
         return {
             "success": True,
@@ -154,13 +162,15 @@ async def get_detailed_analytics(
         Dict с детальной статистикой по сессиям, пользователям и этапам
     """
     try:
-        logger.info(f"📋 Запрос детальной аналитики для бота {bot_id}, период: {days} дней")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"📋 Запрос детальной аналитики для бота {bot_id}, период: {days} дней")
         
         db_client = get_supabase_client(bot_id)
         await db_client.initialize()
         
         # ОПТИМИЗАЦИЯ: Выполняем независимые запросы параллельно
-        logger.info(f"📊 Параллельная загрузка метрик и воронки...")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"📊 Параллельная загрузка метрик и воронки...")
         metrics, funnel_stats = await asyncio.gather(
             db_client.get_dashboard_metrics(bot_id, days),
             db_client.get_funnel_stats(bot_id, days)
@@ -178,7 +188,8 @@ async def get_detailed_analytics(
             "generated_at": datetime.now().isoformat()
         }
         
-        logger.info(f"✅ Детальная аналитика для бота {bot_id} получена")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"✅ Детальная аналитика для бота {bot_id} получена")
         
         return detailed_analytics
         
@@ -249,7 +260,8 @@ async def get_detailed_metrics(
             "generated_at": datetime.now().isoformat()
         }
         
-        logger.info(f"✅ Детальные метрики для бота {bot_id} успешно получены")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"✅ Детальные метрики для бота {bot_id} успешно получены")
         
         return response
         
@@ -273,7 +285,8 @@ async def get_recent_events(
         Dict со списком последних событий (title, description, created_at)
     """
     try:
-        logger.info(f"📋 Запрос последних {limit} событий для бота {bot_id}")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"📋 Запрос последних {limit} событий для бота {bot_id}")
         
         db_client = get_supabase_client(bot_id)
         await db_client.initialize()
@@ -309,7 +322,8 @@ async def get_recent_events(
                 except json.JSONDecodeError:
                     logger.warning(f"Не удалось распарсить info_dashboard: {info}")
         
-        logger.info(f"✅ Получено {len(events_list)} событий для бота {bot_id}")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"✅ Получено {len(events_list)} событий для бота {bot_id}")
         
         return {
             "success": True,
@@ -340,16 +354,19 @@ async def export_analytics(
         Dict с полной аналитикой для экспорта
     """
     try:
-        logger.info(f"📤 Экспорт аналитики для бота {bot_id}, период: {days} дней, формат: {export_format}")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"📤 Экспорт аналитики для бота {bot_id}, период: {days} дней, формат: {export_format}")
         
         db_client = get_supabase_client(bot_id)
         await db_client.initialize()
         
         # Получаем полную аналитику
-        logger.info(f"📊 Получение метрик...")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"📊 Получение метрик...")
         metrics = await db_client.get_dashboard_metrics(bot_id, days)
         
-        logger.info(f"🎯 Получение воронки...")
+        if settings.ENVIRONMENT != "production":
+            logger.info(f"🎯 Получение воронки...")
         funnel_stats = await db_client.get_funnel_stats(bot_id, days)
         
         export_data = {
@@ -361,11 +378,14 @@ async def export_analytics(
         }
         
         if export_format == "json":
-            logger.info(f"✅ JSON экспорт для бота {bot_id} завершен")
+            if settings.ENVIRONMENT != "production":
+                logger.info(f"✅ JSON экспорт для бота {bot_id} завершен")
             return export_data
         elif export_format == "csv":
             # Возвращаем те же данные - конвертация в CSV происходит на фронтенде
-            logger.info(f"✅ CSV экспорт для бота {bot_id} завершен (конвертация на фронтенде)")
+            if settings.ENVIRONMENT != "production":
+                if settings.ENVIRONMENT != "production":
+                logger.info(f"✅ CSV экспорт для бота {bot_id} завершен (конвертация на фронтенде)")
             return export_data
         
     except Exception as e:

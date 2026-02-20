@@ -81,7 +81,9 @@ const DashboardPage = () => {
     const currentPeriod = periodOnly ? period : currentPeriodRef.current
     
     if (import.meta.env.DEV) {
-      console.log('[DashboardPage] loadAnalytics:', { botId, currentPeriod, silent, periodOnly })
+      if (import.meta.env.DEV) {
+        console.log('[DashboardPage] loadAnalytics:', { botId, currentPeriod, silent, periodOnly })
+      }
     }
     
     try {
@@ -256,7 +258,9 @@ const DashboardPage = () => {
     if (!botId) return
     
     if (import.meta.env.DEV) {
-      console.log('[DashboardPage] Загрузка дашборда для бота:', botId)
+      if (import.meta.env.DEV) {
+        console.log('[DashboardPage] Загрузка дашборда для бота:', botId)
+      }
     }
     
     // При смене бота загружаем все метрики и синхронизируем временные значения
