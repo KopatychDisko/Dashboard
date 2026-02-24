@@ -9,6 +9,8 @@ import MessageFormatter from '../components/MessageFormatter'
 import { formatSessionDate, formatMessageDate } from '../utils/dateFormatter'
 import { ArrowLeft, Search, User, MessageSquare, ArrowUp, ArrowDown, Clock, Copy, Check } from 'lucide-react'
 
+const EXCLUDED_TELEGRAM_IDS = [7406243428, 673684452]
+
 const DialogHistoryPage = () => {
   const { botId } = useParams()
   const navigate = useNavigate()
@@ -62,7 +64,9 @@ const DialogHistoryPage = () => {
       })
       
       if (response.data.success) {
-        const allUsers = response.data.users || []
+        const allUsers = (response.data.users || []).filter(
+          u => !EXCLUDED_TELEGRAM_IDS.includes(Number(u.telegram_id))
+        )
         setUsers(allUsers)
       }
     } catch (err) {
