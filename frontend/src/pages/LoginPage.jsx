@@ -73,8 +73,15 @@ const LoginPage = () => {
       script.async = true
       script.setAttribute(
         'data-telegram-login',
-        import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'DashBoardMetricksBot'
+        import.meta.env.VITE_TELEGRAM_BOT_USERNAME
       )
+
+      if (!import.meta.env.VITE_TELEGRAM_BOT_USERNAME) {
+        setError('Не задан VITE_TELEGRAM_BOT_USERNAME. Скопируйте frontend/.env.example в frontend/.env')
+        loadingRef.current = false
+        setLoading(false)
+        return
+      }
       
       // Адаптивный размер виджета в зависимости от устройства
       const isMobile = window.innerWidth <= 768
@@ -84,22 +91,16 @@ const LoginPage = () => {
       script.setAttribute('data-radius', '12')
       script.setAttribute('data-request-access', 'write')
       
-      // Используем переменную окружения для auth URL
-      const authUrl = import.meta.env.VITE_AUTH_URL || 
-        (import.meta.env.DEV 
-          ? 'http://127.0.0.1/bots'  // Fallback для тестового окружения
-          : 'https://dshb.lemifar.ru/bots')  // Fallback для продакшена
+      const authUrl = import.meta.env.VITE_AUTH_URL
       
-      // Используем ТОЛЬКО redirect подход
-      script.setAttribute('data-auth-url', authUrl)
-      
-      // Проверяем, что URL правильный
       if (!authUrl || !authUrl.includes('/bots')) {
-        setError('Ошибка настройки виджета: неверный URL редиректа')
-        if (import.meta.env.DEV) {
-          console.error('Invalid auth URL configured:', authUrl)
-        }
+        setError('Не задан VITE_AUTH_URL. Скопируйте frontend/.env.example в frontend/.env')
+        loadingRef.current = false
+        setLoading(false)
+        return
       }
+
+      script.setAttribute('data-auth-url', authUrl)
       
       script.onerror = (e) => {
         if (isComponentMounted) {

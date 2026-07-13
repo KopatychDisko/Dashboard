@@ -1,3 +1,6 @@
+# Production override. Задайте переменные в .env перед запуском:
+#   FRONTEND_URL, CORS_ORIGINS, VITE_API_URL, VITE_TELEGRAM_BOT_USERNAME, VITE_AUTH_URL
+
 services:
   backend:
     build:
@@ -9,8 +12,8 @@ services:
       - .env
     environment:
       - ENVIRONMENT=production
-      - FRONTEND_URL=https://dshb.lemifar.ru
-      - CORS_ORIGINS=https://dshb.lemifar.ru
+      - FRONTEND_URL=${FRONTEND_URL}
+      - CORS_ORIGINS=${CORS_ORIGINS:-${FRONTEND_URL}}
       - WORKERS=4
     restart: unless-stopped
     networks:
@@ -21,9 +24,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=https://dshb.lemifar.ru/api
-        - VITE_TELEGRAM_BOT_USERNAME=DashBoardMetricksBot
-        - VITE_AUTH_URL=https://dshb.lemifar.ru/bots
+        - VITE_API_URL=${VITE_API_URL}
+        - VITE_TELEGRAM_BOT_USERNAME=${VITE_TELEGRAM_BOT_USERNAME}
+        - VITE_AUTH_URL=${VITE_AUTH_URL}
     ports:
       - "127.0.0.1:8080:80"
     volumes:
@@ -35,4 +38,3 @@ services:
 networks:
   telegram-dashboard:
     driver: bridge
-

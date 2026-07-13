@@ -10,19 +10,17 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str 
     
     # Telegram
-    TELEGRAM_BOT_TOKEN: str  # Должен быть в .env
-    TELEGRAM_BOT_USERNAME: str = "DashBoardMetricksBot"
+    TELEGRAM_BOT_TOKEN: str
+    TELEGRAM_BOT_USERNAME: str = "your_bot_username"
     
     # Security
-    SECRET_KEY: str  # Должен быть в .env
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # CORS
     FRONTEND_URL: str = "http://127.0.0.1"
-    # CORS_ORIGINS: список разрешенных origins через запятую
-    # Пример: "http://127.0.0.1,http://localhost:3000,https://dshb.lemifar.ru"
-    CORS_ORIGINS: str = "http://127.0.0.1,http://127.0.0.1:8080,http://localhost:3000,http://127.0.0.1:3000,https://dshb.lemifar.ru"
+    CORS_ORIGINS: str = "http://127.0.0.1,http://127.0.0.1:8080,http://localhost:3000,http://127.0.0.1:3000"
     
     # Request Limits
     # MAX_REQUEST_BODY_SIZE_MB: максимальный размер тела запроса в мегабайтах (по умолчанию 1 MB)

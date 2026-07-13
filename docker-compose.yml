@@ -11,9 +11,6 @@ services:
       - ENVIRONMENT=development
       - FRONTEND_URL=http://127.0.0.1:80
       - CORS_ORIGINS=http://127.0.0.1:80,http://localhost:80,http://127.0.0.1,http://localhost
-      - SECRET_KEY=dev-secret-key-change-in-production
-      # Для тестового бота можно указать TELEGRAM_BOT_TOKEN_DEV в .env или здесь
-      # Если не указан, будет использоваться TELEGRAM_BOT_TOKEN из .env
     restart: unless-stopped
     networks:
       - telegram-dashboard
@@ -24,7 +21,7 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_API_URL=http://127.0.0.1:8000/api
-        - VITE_TELEGRAM_BOT_USERNAME=test_dahboard_bot
+        - VITE_TELEGRAM_BOT_USERNAME=${VITE_TELEGRAM_BOT_USERNAME:-your_bot_username}
         - VITE_AUTH_URL=http://127.0.0.1/bots
     ports:
       - "127.0.0.1:80:80"

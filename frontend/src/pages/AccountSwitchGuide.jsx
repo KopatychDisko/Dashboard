@@ -35,6 +35,7 @@ const ImageModal = ({ isOpen, onClose, imageSrc, alt }) => {
 
 const AccountSwitchGuide = () => {
   const [modalImage, setModalImage] = useState(null)
+  const siteHost = typeof window !== 'undefined' ? window.location.host : 'ваш-сайт'
   
   const navigate = useNavigate()
 
@@ -119,14 +120,14 @@ const AccountSwitchGuide = () => {
               <h2 className="text-xl font-semibold text-white">Найдите сообщение о подключении</h2>
             </div>
             <p className="text-white/80 mb-4">
-              В этом чате найдите сообщение о подключении к сайту <span className="text-white font-medium">dshb.lemifar.ru</span>.
+              В этом чате найдите сообщение о подключении к сайту <span className="text-white font-medium">{siteHost}</span>.
             </p>
             <div className="aspect-video bg-white/5 rounded-xl border border-white/10 flex items-center justify-center text-white/60 overflow-hidden">
               <img
                   src="/assets/find_msg.png"
-                  alt="Сообщение о подключении к dshb.lemifar.ru"
+                  alt={`Сообщение о подключении к ${siteHost}`}
                   className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                  onClick={() => setModalImage({ src: "/assets/find_msg.png", alt: "Сообщение о подключении к dshb.lemifar.ru" })}
+                  onClick={() => setModalImage({ src: "/assets/find_msg.png", alt: `Сообщение о подключении к ${siteHost}` })}
                   loading="lazy"
                   decoding="async"
                 />
